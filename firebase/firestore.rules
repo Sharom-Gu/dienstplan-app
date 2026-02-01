@@ -66,5 +66,20 @@ service cloud.firestore {
       // No one can update or delete audit logs
       allow update, delete: if false;
     }
+
+    // Vacations collection (Urlaub & Krankheit)
+    match /vacations/{vacationId} {
+      // Anyone authenticated can read vacations (for calendar view)
+      allow read: if isAuthenticated();
+      // Users can create their own vacation/sick day entries
+      allow create: if isAuthenticated() &&
+        (request.resource.data.userId == request.auth.uid || isAdmin());
+      // Users can update their own entries, admins can update any
+      allow update: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      // Users can delete their own entries, admins can delete any
+      allow delete: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+    }
   }
 }
