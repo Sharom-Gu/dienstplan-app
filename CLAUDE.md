@@ -2,13 +2,108 @@
 
 ## Aktueller Stand (01.02.2026)
 
-### Was wurde implementiert
+### DEPLOYMENT STATUS: LIVE ✅
+
+**Live-URL:** https://elaborate-daffodil-c7fa70.netlify.app
+
+| Service | Status | Details |
+|---------|--------|---------|
+| GitHub | ✅ | https://github.com/Sharom-Gu/dienstplan-app |
+| Netlify | ✅ | elaborate-daffodil-c7fa70.netlify.app |
+| Firebase Auth | ✅ | dienstplan-nevpaz |
+| Firestore | ⚠️ | Regeln noch deployen! |
+
+---
+
+## NOCH ZU TUN (beim nächsten Start)
+
+### 1. Firestore-Regeln deployen
+```bash
+cd /Users/sharom/Claude_Program/Dienstplan_Nevpaz/dienstplan-app
+firebase login
+firebase use dienstplan-nevpaz
+firebase deploy --only firestore:rules
+```
+
+### 2. Netlify-Domain in Firebase autorisieren
+1. Gehe zu: https://console.firebase.google.com/project/dienstplan-nevpaz/authentication/settings
+2. Unter "Autorisierte Domains" → "Domain hinzufügen"
+3. Füge hinzu: `elaborate-daffodil-c7fa70.netlify.app`
+
+### 3. Ersten Admin-Benutzer erstellen
+1. Registriere dich auf https://elaborate-daffodil-c7fa70.netlify.app
+2. Gehe zu Firebase Console → Firestore → `users` Collection
+3. Finde dein Dokument und ändere:
+   - `role`: `"admin"`
+   - `status`: `"approved"`
+
+---
+
+## Firebase-Konfiguration
+
+**Projekt-ID:** `dienstplan-nevpaz`
+
+```
+VITE_FIREBASE_API_KEY=AIzaSyDy0O3yJshzo9-1j6o2HpFx2_QmWzVU5PQ
+VITE_FIREBASE_AUTH_DOMAIN=dienstplan-nevpaz.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=dienstplan-nevpaz
+VITE_FIREBASE_STORAGE_BUCKET=dienstplan-nevpaz.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=1071522368252
+VITE_FIREBASE_APP_ID=1:1071522368252:web:f49dc965854d18e64a2579
+```
+
+Diese Variablen sind bereits in Netlify konfiguriert.
+
+---
+
+## Entwicklung fortsetzen
+
+### Lokal entwickeln
+```bash
+cd /Users/sharom/Claude_Program/Dienstplan_Nevpaz/dienstplan-app
+
+# Dependencies (falls nötig)
+npm install
+
+# Dev-Server starten
+npm run dev
+
+# Demo-Modus aktivieren (für lokale Tests ohne Firebase)
+# In src/App.jsx: DEMO_MODE = true
+```
+
+### Änderungen deployen
+```bash
+# Code committen
+git add .
+git commit -m "Beschreibung der Änderung"
+
+# Zu GitHub pushen (Netlify deployed automatisch)
+git push origin main
+```
+
+### SSH-Key für GitHub
+SSH-Key wurde erstellt und zu GitHub hinzugefügt:
+- Privat: `~/.ssh/id_ed25519`
+- Öffentlich: `~/.ssh/id_ed25519.pub`
+
+Falls SSH nicht funktioniert:
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+```
+
+---
+
+## Was wurde implementiert
+
 Die komplette Dienstplan-App ist fertig implementiert:
 
 - **Frontend**: React + Vite
 - **Backend**: Firebase (Auth + Firestore)
 - **Styling**: Dark Theme CSS mit Custom Properties
 - **Demo-Modus**: Vollständig funktionsfähig ohne Firebase
+- **Hosting**: Netlify (automatisches Deployment via GitHub)
 
 ### Projektstruktur
 ```
@@ -24,17 +119,20 @@ dienstplan-app/
 │   ├── services/                     # Firebase-Services (authService, shiftService, vacationService)
 │   ├── utils/                        # dateUtils, validation
 │   └── App.jsx, main.jsx, index.css
-├── firebase/firestore.rules
+├── firebase/firestore.rules          # Sicherheitsregeln für Firestore
+├── netlify.toml                      # Netlify Build-Konfiguration
 └── Konfigurationsdateien
 ```
 
 ### Demo-Modus
-Die App startet standardmäßig im Demo-Modus (`DEMO_MODE = true` in App.jsx).
+Die App kann im Demo-Modus laufen (`DEMO_MODE = true` in App.jsx).
 - Kein Login erforderlich
 - Umschalten zwischen Nutzer- und Admin-Ansicht
 - Alle Features testbar mit Demo-Daten
 - Demo-Daten für aktuelle UND nächste Woche
 - Wochen-Navigation funktioniert vollständig
+
+**Für Produktion ist DEMO_MODE = false gesetzt.**
 
 ### Schichtmodell
 Jeder Mitarbeiter arbeitet 3 Tage/Woche = 20 Stunden:
@@ -159,24 +257,6 @@ CSS-Variablen in `index.css`:
 /* ... bis --employee-color-9 */
 ```
 
-### Wichtige Befehle
-```bash
-# Im Projektverzeichnis:
-cd /Users/sharom/Claude_Program/Dienstplan_Nevpaz/dienstplan-app
-
-# Dependencies installieren
-npm install
-
-# Dev-Server starten (Demo-Modus)
-npm run dev
-
-# Build erstellen
-npm run build
-
-# Firebase Emulators starten (benötigt Java)
-firebase emulators:start
-```
-
 ### Datenmodell (Firestore Collections)
 
 #### users
@@ -233,11 +313,6 @@ firebase emulators:start
   createdAt: Timestamp
 }
 ```
-
-### Konfiguration
-- `.env.local` - Firebase-Konfiguration
-- `firebase.json` - Emulator-Ports (Auth: 9099, Firestore: 8080, UI: 4000)
-- `DEMO_MODE` in `App.jsx` - Demo-Modus an/aus
 
 ### Hinweise
 - Demo-Modus zeigt Schichten für aktuelle UND nächste Woche
