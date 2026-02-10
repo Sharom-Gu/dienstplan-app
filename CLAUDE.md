@@ -1,6 +1,6 @@
 # Dienstplan-App - Projekt-Status
 
-## Aktueller Stand (01.02.2026)
+## Aktueller Stand (08.02.2026)
 
 ### DEPLOYMENT STATUS: LIVE ✅
 
@@ -11,31 +11,17 @@
 | GitHub | ✅ | https://github.com/Sharom-Gu/dienstplan-app |
 | Netlify | ✅ | elaborate-daffodil-c7fa70.netlify.app |
 | Firebase Auth | ✅ | dienstplan-nevpaz |
-| Firestore | ⚠️ | Regeln noch deployen! |
+| Firestore | ✅ | Regeln deployed |
 
 ---
 
-## NOCH ZU TUN (beim nächsten Start)
+## ADMIN-ZUGANG
 
-### 1. Firestore-Regeln deployen
-```bash
-cd /Users/sharom/Claude_Program/Dienstplan_Nevpaz/dienstplan-app
-firebase login
-firebase use dienstplan-nevpaz
-firebase deploy --only firestore:rules
-```
+**Admin-Account:**
+- E-Mail: In Firebase Console → Authentication einsehen
+- Passwort: Weissenhof21
 
-### 2. Netlify-Domain in Firebase autorisieren
-1. Gehe zu: https://console.firebase.google.com/project/dienstplan-nevpaz/authentication/settings
-2. Unter "Autorisierte Domains" → "Domain hinzufügen"
-3. Füge hinzu: `elaborate-daffodil-c7fa70.netlify.app`
-
-### 3. Ersten Admin-Benutzer erstellen
-1. Registriere dich auf https://elaborate-daffodil-c7fa70.netlify.app
-2. Gehe zu Firebase Console → Firestore → `users` Collection
-3. Finde dein Dokument und ändere:
-   - `role`: `"admin"`
-   - `status`: `"approved"`
+**Wichtig:** Die Firestore-Dokument-ID muss mit der Firebase Auth UID übereinstimmen!
 
 ---
 
@@ -138,13 +124,16 @@ Die App kann im Demo-Modus laufen (`DEMO_MODE = true` in App.jsx).
 Jeder Mitarbeiter arbeitet 3 Tage/Woche = 20 Stunden:
 - **2x Kurzschicht (6h)**: Früh (09:00-15:00) oder Spät (13:00-19:00)
 - **1x Langschicht (8h Arbeitszeit)**: Mit 30 Min. Pause (wird nicht mitgezählt)
-  - Mo, Di, Do: 10:30-19:00 (8,5h Anwesenheit, 8h Arbeitszeit)
-  - Mi, Fr: 09:00-17:30 (8,5h Anwesenheit, 8h Arbeitszeit)
+  - **Lang-Früh**: 09:00-17:30 (8,5h Anwesenheit, 8h Arbeitszeit)
+  - **Lang-Spät**: 10:30-19:00 (8,5h Anwesenheit, 8h Arbeitszeit)
 
 Kapazitäten:
-- Frühschicht: 2 Plätze
-- Spätschicht: 2 Plätze
-- Langschicht: 1 Platz (nur eine pro Tag)
+- Frühschicht (frueh): 2 Plätze
+- Spätschicht (spaet): 2 Plätze
+- Lang-Früh (lang_frueh): 1 Platz
+- Lang-Spät (lang_spaet): 1 Platz
+
+**Langschicht-Logik**: Beide Langschichten werden angezeigt, aber nur eine pro Tag kann gebucht werden. Wird eine Langschicht gebucht, wird die andere gesperrt ("Andere Langschicht gebucht").
 
 ### Features
 
@@ -163,6 +152,7 @@ Kapazitäten:
    - Freie Schichten Button
    - Sofortige Buchung (ohne Genehmigung)
    - Wochenstunden-Anzeige
+   - **Langschicht-Sperrung**: Nur eine Langschicht pro Tag buchbar (beide werden angezeigt, aber nach Buchung einer wird die andere gesperrt)
 
 3. **Urlaub & Krankheit**
    - Urlaubstage-Übersicht (Gesamt, Genommen, Verbleibend, Krankheitstage)
@@ -178,7 +168,11 @@ Kapazitäten:
 1. **Kalender-Tab**
    - Wochenübersicht aller Schichten
    - Schichten hinzufügen/bearbeiten/löschen
-   - "Woche generieren" für Standardschichten
+   - **Bulk-Schichterstellung**: Schichten für mehrere Wochen auf einmal generieren
+     - Optionen: 4 Wochen, 12 Wochen, 26 Wochen (½ Jahr), 52 Wochen (1 Jahr)
+     - Überspringt Wochen die bereits Schichten haben
+     - Generiert alle 4 Schichttypen: Früh, Spät, Lang-Früh, Lang-Spät
+   - **"Alle löschen" Button**: Löscht alle Schichten (mit doppelter Bestätigung)
    - Mitarbeiter manuell zuweisen (mit Stundenwarnung bei 20h+)
    - Individuelle Arbeitszeiten pro Buchung anpassen
 
@@ -194,14 +188,19 @@ Kapazitäten:
    - Einträge die über Monate gehen erscheinen in beiden Monaten
 
 3. **Benutzer-Tab**
-   - **Ausstehende Registrierungen**: Neue Benutzer freigeben/ablehnen
+   - **Einladungslink erstellen**: Generiert einmaligen Registrierungslink
    - **Aktive Benutzer**: Alle genehmigten Mitarbeiter
      - Rolle ändern (Benutzer/Admin)
+     - **Passwort zurücksetzen**: Sendet E-Mail zum Zurücksetzen des Passworts
      - Zugang entziehen
    - Rollen-Badges (Admin = gelb, Benutzer = cyan)
 
 4. **Audit-Log-Tab**
    - Protokoll aller Aktionen
+
+### Session-Verhalten
+- **Session endet bei Tab/Browser-Schließung**: Benutzer werden automatisch ausgeloggt wenn sie den Tab oder Browser schließen
+- Verwendet `browserSessionPersistence` statt `browserLocalPersistence`
 
 ### Urlaubs- und Krankheitssystem
 - **15 Urlaubstage pro Jahr** (Standard)
@@ -225,16 +224,26 @@ Kapazitäten:
 - Konsistent in Mitarbeiter- und Admin-Ansicht
 - Krankheitstage immer rot (überschreibt Mitarbeiterfarbe)
 
-### Benutzer-Registrierung
-1. Neuer Benutzer registriert sich → Status "pending"
-2. Admin sieht Anfrage im "Benutzer"-Tab
-3. Admin wählt Rolle und klickt "Freigeben" → Status "approved"
-4. Benutzer kann sich jetzt einloggen
+### Einladungssystem (NEU!)
+Statt öffentlicher Registrierung gibt es jetzt Einladungslinks:
+
+1. **Admin erstellt Einladung:**
+   - Admin-Bereich → Benutzer-Tab → "Einladungslink erstellen"
+   - System generiert einmaligen Link: `https://app.com/invite/TOKEN`
+   - Admin kopiert und teilt den Link
+
+2. **Mitarbeiter registriert sich:**
+   - Klickt auf den Einladungslink
+   - Gibt Name, E-Mail, Passwort ein
+   - Ist sofort freigeschaltet (Status: `approved`)
+
+3. **Vorteile:**
+   - Nur eingeladene Personen können sich registrieren
+   - Keine manuelle Freigabe nötig
+   - Links funktionieren nur einmal
 
 Status-Typen:
-- `pending` - Wartet auf Admin-Freigabe
 - `approved` - Freigegeben, kann sich einloggen
-- `rejected` - Abgelehnt
 - `revoked` - Zugang entzogen
 
 ### Dark Theme Design
@@ -314,9 +323,45 @@ CSS-Variablen in `index.css`:
 }
 ```
 
+#### invitations (Einladungslinks)
+```javascript
+{
+  token: "ABC123xyz...",       // Einmaliger 32-Zeichen Token
+  createdBy: "admin-uid",
+  createdByName: "Admin Name",
+  createdAt: Timestamp,
+  usedAt: null | Timestamp,    // null = noch nicht verwendet
+  usedBy: null | "user-uid",
+  usedByName: null | "User Name"
+}
+```
+
 ### Hinweise
 - Demo-Modus zeigt Schichten für aktuelle UND nächste Woche
 - "Heute" Button springt zur aktuellen Woche
 - Buchungen werden sofort bestätigt (keine Genehmigung erforderlich)
 - Vergangene Schichten können nicht mehr gebucht werden
 - Wochenenden können nicht als Urlaubs-/Krankheitsdatum gewählt werden
+- **Firestore-Queries**: Sortierung erfolgt client-seitig um Index-Probleme zu vermeiden
+
+---
+
+## Neue Services und Funktionen (08.02.2026)
+
+### shiftService.js - Neue Funktionen
+- `generateMultipleWeeksShifts(startDate, numberOfWeeks, createdBy, shiftTypes)` - Bulk-Erstellung
+- `weekHasShifts(weekStart)` - Prüft ob Woche bereits Schichten hat
+- `deleteAllShifts()` - Löscht alle Schichten
+- `getShiftTypes()` - Gibt Standard-Schichttypen zurück
+
+### invitationService.js - Einladungssystem
+- `createInvitation(createdByUid, createdByName)` - Erstellt Einladungstoken
+- `validateInvitation(token)` - Prüft ob Token gültig und unbenutzt
+- `markInvitationUsed(token, userId, userName)` - Markiert Token als verwendet
+- `getInvitations(createdByUid)` - Listet alle Einladungen eines Admins
+
+### authService.js - Passwort-Reset
+- `sendPasswordReset(email)` - Sendet Passwort-Reset E-Mail
+
+### Komponenten
+- `InviteRegister.jsx` - Registrierungsformular für eingeladene Benutzer (Route: `/invite/:token`)

@@ -81,5 +81,25 @@ service cloud.firestore {
       allow delete: if isAuthenticated() &&
         (resource.data.userId == request.auth.uid || isAdmin());
     }
+
+    // Invitations collection (Einladungslinks)
+    match /invitations/{invitationId} {
+      // Anyone can read invitations (needed for token validation before login)
+      allow read: if true;
+      // Only admins can create invitations
+      allow create: if isAdmin();
+      // Anyone can update (to mark as used after registration)
+      allow update: if true;
+      // Only admins can delete invitations
+      allow delete: if isAdmin();
+    }
+
+    // Hour exceptions collection (Stundenausnahmen)
+    match /hourExceptions/{exceptionId} {
+      // Anyone authenticated can read (needed to check limits)
+      allow read: if isAuthenticated();
+      // Only admins can create, update, delete
+      allow create, update, delete: if isAdmin();
+    }
   }
 }

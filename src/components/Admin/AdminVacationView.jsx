@@ -8,6 +8,8 @@ export function AdminVacationView({
   employees,
   currentYear,
   onDeleteVacation,
+  onApproveDeletion,
+  onRejectDeletion,
   onUpdateEmployee,
   onAddSickDay,
   onRefresh
@@ -187,13 +189,16 @@ export function AdminVacationView({
 
     setAddingSick(true);
     try {
-      await onAddSickDay(
+      const result = await onAddSickDay(
         sickEmployeeId,
         employee.displayName || employee.name,
         sickStartDate,
         sickEndDate,
         sickNote
       );
+      if (result?.cancelledBookings > 0) {
+        alert(`Krankheit eingetragen. ${result.cancelledBookings} Schicht(en) wurden automatisch storniert.`);
+      }
       setSickEmployeeId('');
       setSickStartDate('');
       setSickEndDate('');
@@ -210,6 +215,24 @@ export function AdminVacationView({
     }
     return 0;
   }, [sickStartDate, sickEndDate]);
+
+  // Löschungsanträge filtern
+  const deletionRequests = useMemo(() => {
+    return vacations.filter(v => v.deletionRequested === true);
+  }, [vacations]);
+
+  const handleApproveDeletion = async (vacationId, type) => {
+    const message = type === 'sick'
+      ? 'Löschung des Krankheitstags genehmigen?'
+      : 'Löschung des Urlaubs genehmigen?';
+    if (!confirm(message)) return;
+    await onApproveDeletion(vacationId);
+  };
+
+  const handleRejectDeletion = async (vacationId) => {
+    if (!confirm('Löschungsantrag ablehnen?')) return;
+    await onRejectDeletion(vacationId);
+  };
 
   const handleCalculateProrated = () => {
     if (editStartDate) {
@@ -318,6 +341,49 @@ export function AdminVacationView({
           </button>
         </form>
       </div>
+
+      {/* Löschungsanträge */}
+      {deletionRequests.length > 0 && (
+        <div className="deletion-requests-section">
+          <h3>Löschungsanträge ({deletionRequests.length})</h3>
+          <div className="deletion-requests-list">
+            {deletionRequests.map(request => (
+              <div key={request.id} className={`deletion-request-item ${request.type === 'sick' ? 'sick' : ''}`}>
+                <div className="request-info">
+                  <span className={`entry-type-badge ${request.type === 'sick' ? 'sick' : 'vacation'}`}>
+                    {request.type === 'sick' ? 'Krank' : 'Urlaub'}
+                  </span>
+                  <span className="request-employee">{request.userName}</span>
+                  <span className="date-range">
+                    {format(parseISO(request.startDate), 'dd.MM.yyyy', { locale: de })}
+                    {request.startDate !== request.endDate && (
+                      <> - {format(parseISO(request.endDate), 'dd.MM.yyyy', { locale: de })}</>
+                    )}
+                  </span>
+                  <span className="days-count">{request.days} Tag{request.days !== 1 ? 'e' : ''}</span>
+                </div>
+                {request.deletionReason && (
+                  <p className="deletion-reason">Grund: {request.deletionReason}</p>
+                )}
+                <div className="request-actions">
+                  <button
+                    className="btn btn-success btn-sm"
+                    onClick={() => handleApproveDeletion(request.id, request.type)}
+                  >
+                    Genehmigen
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => handleRejectDeletion(request.id)}
+                  >
+                    Ablehnen
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Bearbeiten-Dialog */}
       {editingEmployee && (
@@ -541,11 +607,14 @@ export function AdminVacationView({
                 {isExpanded && monthVacations.length > 0 && (
                   <div className="month-entries">
                     {monthVacations.map(vacation => (
-                      <div key={`${monthKey}-${vacation.id}`} className={`vacation-item ${vacation.type === 'sick' ? 'sick' : 'admin'}`}>
+                      <div key={`${monthKey}-${vacation.id}`} className={`vacation-item ${vacation.type === 'sick' ? 'sick' : 'admin'} ${vacation.deletionRequested ? 'deletion-pending' : ''}`}>
                         <div className="vacation-info">
                           <span className={`entry-type-badge ${vacation.type === 'sick' ? 'sick' : 'vacation'}`}>
                             {vacation.type === 'sick' ? 'Krank' : 'Urlaub'}
                           </span>
+                          {vacation.deletionRequested && (
+                            <span className="deletion-pending-badge">Löschung beantragt</span>
+                          )}
                           <span className="vacation-employee">{vacation.userName}</span>
                           <span className="date-range">
                             {format(parseISO(vacation.startDate), 'dd.MM.yyyy', { locale: de })}

@@ -20,16 +20,23 @@ export const getShiftsForWeek = async (weekStart) => {
   const startStr = format(weekStart, 'yyyy-MM-dd');
   const endStr = format(weekEnd, 'yyyy-MM-dd');
 
+  // Einfache Query ohne orderBy (Sortierung im Client)
   const q = query(
     shiftsCollection,
     where('date', '>=', startStr),
-    where('date', '<=', endStr),
-    orderBy('date'),
-    orderBy('startTime')
+    where('date', '<=', endStr)
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const shifts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  // Sortierung im Client: erst nach Datum, dann nach Startzeit
+  return shifts.sort((a, b) => {
+    if (a.date !== b.date) {
+      return a.date.localeCompare(b.date);
+    }
+    return a.startTime.localeCompare(b.startTime);
+  });
 };
 
 export const createShift = async (shiftData, createdBy) => {
@@ -88,4 +95,56 @@ export const generateWeekShifts = async (weekStart, createdBy, shiftTypes = ['fr
   return createdShifts;
 };
 
+// Prüft ob für eine Woche bereits Schichten existieren
+export const weekHasShifts = async (weekStart) => {
+  const weekEnd = addDays(weekStart, 4);
+  const startStr = format(weekStart, 'yyyy-MM-dd');
+  const endStr = format(weekEnd, 'yyyy-MM-dd');
+
+  const q = query(
+    shiftsCollection,
+    where('date', '>=', startStr),
+    where('date', '<=', endStr)
+  );
+
+  const snapshot = await getDocs(q);
+  return !snapshot.empty;
+};
+
+// Generiert Schichten für mehrere Wochen (überspringt Wochen die bereits Schichten haben)
+// Beide Langschichten werden generiert (lang_frueh und lang_spaet)
+export const generateMultipleWeeksShifts = async (startDate, numberOfWeeks, createdBy, shiftTypes = ['frueh', 'spaet', 'lang_frueh', 'lang_spaet']) => {
+  const results = {
+    generated: 0,
+    skipped: 0,
+    totalShifts: 0
+  };
+
+  let currentWeekStart = startOfWeek(startDate, { weekStartsOn: 1 });
+
+  for (let week = 0; week < numberOfWeeks; week++) {
+    const hasShifts = await weekHasShifts(currentWeekStart);
+
+    if (!hasShifts) {
+      const shifts = await generateWeekShifts(currentWeekStart, createdBy, shiftTypes);
+      results.generated++;
+      results.totalShifts += shifts.length;
+    } else {
+      results.skipped++;
+    }
+
+    currentWeekStart = addDays(currentWeekStart, 7);
+  }
+
+  return results;
+};
+
 export const getShiftTypes = () => defaultShiftTypes;
+
+// Alle Schichten löschen
+export const deleteAllShifts = async () => {
+  const snapshot = await getDocs(shiftsCollection);
+  const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+  await Promise.all(deletePromises);
+  return snapshot.docs.length;
+};

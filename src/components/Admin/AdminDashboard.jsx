@@ -3,6 +3,7 @@ import { WeekView } from '../Calendar/WeekView';
 import { ShiftEditor } from './ShiftEditor';
 import { AuditLog } from './AuditLog';
 import { AdminVacationView } from './AdminVacationView';
+import { HourExceptionManager } from './HourExceptionManager';
 import { calculateDuration } from '../../utils/dateUtils';
 
 // Hilfsfunktion: Wochenstunden eines Mitarbeiters berechnen (ohne Pausen)
@@ -259,9 +260,59 @@ function BookingTimeEditor({ booking, onSave, onClose }) {
 }
 
 // Inline-Komponente für Benutzer-Verwaltung
-function UserManagement({ pendingUsers, approvedUsers, onApproveUser, onRejectUser, onRevokeUser, onChangeUserRole }) {
+function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUser, onRejectUser, onRevokeUser, onChangeUserRole, onCreateInvitation, onResetPassword }) {
   const [selectedRoles, setSelectedRoles] = useState({});
   const [processing, setProcessing] = useState({});
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [resetSent, setResetSent] = useState({});
+
+  const handleCreateInvite = async () => {
+    setCreatingInvite(true);
+    try {
+      const url = await onCreateInvitation();
+      setInviteUrl(url);
+      setShowInviteModal(true);
+    } catch (err) {
+      alert('Fehler beim Erstellen der Einladung');
+    } finally {
+      setCreatingInvite(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Fallback für ältere Browser
+      const textArea = document.createElement('textarea');
+      textArea.value = inviteUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleResetPassword = async (userId, email) => {
+    if (!confirm(`Passwort-Reset E-Mail an "${email}" senden?`)) return;
+    setProcessing(prev => ({ ...prev, [userId]: true }));
+    try {
+      await onResetPassword(email);
+      setResetSent(prev => ({ ...prev, [userId]: true }));
+      setTimeout(() => setResetSent(prev => ({ ...prev, [userId]: false })), 3000);
+    } catch (err) {
+      alert('Fehler beim Senden der E-Mail: ' + err.message);
+    } finally {
+      setProcessing(prev => ({ ...prev, [userId]: false }));
+    }
+  };
 
   const handleApprove = async (userId) => {
     setProcessing(prev => ({ ...prev, [userId]: true }));
@@ -303,14 +354,83 @@ function UserManagement({ pendingUsers, approvedUsers, onApproveUser, onRejectUs
   };
 
   const getRoleBadge = (role) => {
-    if (role === 'admin') {
-      return <span className="role-badge role-admin">Admin</span>;
+    switch (role) {
+      case 'admin':
+        return <span className="role-badge role-admin">Admin</span>;
+      case 'arzt':
+        return <span className="role-badge role-arzt">Arzt</span>;
+      case 'mfa':
+        return <span className="role-badge role-mfa">MFA</span>;
+      case 'werkstudent':
+        return <span className="role-badge role-werkstudent">Werkstudent</span>;
+      case 'minijobber':
+        return <span className="role-badge role-minijobber">Minijobber</span>;
+      default:
+        return <span className="role-badge role-user">Benutzer</span>;
     }
-    return <span className="role-badge role-user">Benutzer</span>;
   };
 
   return (
     <div className="user-management">
+      {/* Einladung erstellen */}
+      <div className="user-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ margin: 0 }}>Mitarbeiter einladen</h3>
+          <button
+            className="btn btn-primary"
+            onClick={handleCreateInvite}
+            disabled={creatingInvite}
+          >
+            {creatingInvite ? 'Wird erstellt...' : '+ Einladungslink erstellen'}
+          </button>
+        </div>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+          Erstellen Sie einen Einladungslink und teilen Sie ihn mit dem neuen Mitarbeiter.
+          Der Link kann nur einmal verwendet werden.
+        </p>
+      </div>
+
+      {/* Einladungs-Modal */}
+      {showInviteModal && (
+        <div className="modal-overlay" onClick={() => setShowInviteModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Einladungslink erstellt</h3>
+              <button className="btn-close" onClick={() => setShowInviteModal(false)}>&times;</button>
+            </div>
+            <div style={{ padding: '1rem' }}>
+              <p style={{ marginBottom: '1rem' }}>
+                Teilen Sie diesen Link mit dem neuen Mitarbeiter:
+              </p>
+              <div style={{
+                background: 'var(--surface-bg)',
+                padding: '0.75rem',
+                borderRadius: '4px',
+                wordBreak: 'break-all',
+                marginBottom: '1rem',
+                border: '1px solid var(--border-color)'
+              }}>
+                {inviteUrl}
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="btn btn-primary"
+                  onClick={handleCopyLink}
+                >
+                  {copied ? 'Kopiert!' : 'Link kopieren'}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowInviteModal(false)}
+                >
+                  Schließen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Ausstehende Registrierungen */}
       <div className="user-section">
         <h3>Ausstehende Registrierungen</h3>
@@ -331,11 +451,14 @@ function UserManagement({ pendingUsers, approvedUsers, onApproveUser, onRejectUs
                 </div>
                 <div className="user-actions">
                   <select
-                    value={selectedRoles[user.id] || 'user'}
+                    value={selectedRoles[user.id] || 'mfa'}
                     onChange={(e) => setSelectedRoles(prev => ({ ...prev, [user.id]: e.target.value }))}
                     disabled={processing[user.id]}
                   >
-                    <option value="user">Benutzer</option>
+                    <option value="arzt">Arzt</option>
+                    <option value="mfa">MFA</option>
+                    <option value="werkstudent">Werkstudent</option>
+                    <option value="minijobber">Minijobber</option>
                     <option value="admin">Admin</option>
                   </select>
                   <button
@@ -382,13 +505,23 @@ function UserManagement({ pendingUsers, approvedUsers, onApproveUser, onRejectUs
                 </div>
                 <div className="user-actions">
                   <select
-                    value={user.role || 'user'}
+                    value={user.role || 'mfa'}
                     onChange={(e) => handleRoleChange(user.id, e.target.value)}
                     disabled={processing[user.id]}
                   >
-                    <option value="user">Benutzer</option>
+                    <option value="arzt">Arzt</option>
+                    <option value="mfa">MFA</option>
+                    <option value="werkstudent">Werkstudent</option>
+                    <option value="minijobber">Minijobber</option>
                     <option value="admin">Admin</option>
                   </select>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => handleResetPassword(user.id, user.email)}
+                    disabled={processing[user.id]}
+                  >
+                    {resetSent[user.id] ? 'Gesendet!' : 'Passwort zurücksetzen'}
+                  </button>
                   <button
                     className="btn btn-danger"
                     onClick={() => handleRevoke(user.id, user.displayName)}
@@ -415,6 +548,7 @@ export function AdminDashboard({
   employees = [],
   pendingUsers = [],
   approvedUsers = [],
+  invitations = [],
   vacations = [],
   currentYear,
   loading,
@@ -424,14 +558,19 @@ export function AdminDashboard({
   onAddShift,
   onEditShift,
   onDeleteShift,
-  onGenerateWeek,
+  onGenerateMultipleWeeks,
+  onClearAllShifts,
   onEditBookingTime,
   onAssignEmployee,
   onApproveUser,
   onRejectUser,
   onRevokeUser,
   onChangeUserRole,
+  onCreateInvitation,
+  onResetPassword,
   onDeleteVacation,
+  onApproveDeletion,
+  onRejectDeletion,
   onUpdateEmployee,
   onAddSickDay,
   refreshAll
@@ -441,6 +580,11 @@ export function AdminDashboard({
   const [showEditor, setShowEditor] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
   const [assigningShift, setAssigningShift] = useState(null);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [generateWeeks, setGenerateWeeks] = useState(12);
+  const [generating, setGenerating] = useState(false);
+  const [generateResult, setGenerateResult] = useState(null);
+  const [showHourExceptions, setShowHourExceptions] = useState(false);
 
   const handleEditShift = (shift) => {
     setEditingShift(shift);
@@ -472,9 +616,38 @@ export function AdminDashboard({
     }
   };
 
-  const handleGenerateWeek = async () => {
-    if (confirm('Standardschichten für diese Woche generieren?')) {
-      await onGenerateWeek(userData?.id);
+  const handleOpenGenerateModal = () => {
+    setGenerateResult(null);
+    setShowGenerateModal(true);
+  };
+
+  const handleGenerateMultipleWeeks = async () => {
+    setGenerating(true);
+    try {
+      const result = await onGenerateMultipleWeeks(generateWeeks, userData?.id);
+      setGenerateResult(result);
+      if (refreshAll) await refreshAll();
+    } catch (err) {
+      alert('Fehler beim Generieren: ' + err.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleClearAllShifts = async () => {
+    if (!confirm('ACHTUNG: Alle Schichten werden unwiderruflich gelöscht! Fortfahren?')) return;
+    if (!confirm('Bist du sicher? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+
+    setGenerating(true);
+    try {
+      const count = await onClearAllShifts();
+      alert(`${count} Schichten wurden gelöscht.`);
+      setShowGenerateModal(false);
+      if (refreshAll) await refreshAll();
+    } catch (err) {
+      alert('Fehler beim Löschen: ' + err.message);
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -543,10 +716,90 @@ export function AdminDashboard({
             <button className="btn btn-primary" onClick={handleNewShift}>
               + Neue Schicht
             </button>
-            <button className="btn btn-secondary" onClick={handleGenerateWeek}>
-              Woche generieren
+            <button className="btn btn-secondary" onClick={handleOpenGenerateModal}>
+              Schichten generieren
+            </button>
+            <button className="btn btn-secondary" onClick={() => setShowHourExceptions(true)}>
+              Stundenausnahmen
             </button>
           </div>
+
+          {/* Modal für Schichten generieren */}
+          {showGenerateModal && (
+            <div className="modal-overlay" onClick={() => setShowGenerateModal(false)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h3>Schichten generieren</h3>
+                  <button className="btn-close" onClick={() => setShowGenerateModal(false)}>&times;</button>
+                </div>
+                <div style={{ padding: '1rem' }}>
+                  {!generateResult ? (
+                    <>
+                      <p style={{ marginBottom: '1rem' }}>
+                        Generiert Standard-Schichten für die nächsten Wochen.
+                        Wochen die bereits Schichten haben werden übersprungen.
+                      </p>
+                      <div className="form-group">
+                        <label htmlFor="generateWeeks">Anzahl Wochen</label>
+                        <select
+                          id="generateWeeks"
+                          value={generateWeeks}
+                          onChange={(e) => setGenerateWeeks(Number(e.target.value))}
+                          disabled={generating}
+                        >
+                          <option value={4}>4 Wochen (1 Monat)</option>
+                          <option value={12}>12 Wochen (3 Monate)</option>
+                          <option value={26}>26 Wochen (6 Monate)</option>
+                          <option value={52}>52 Wochen (1 Jahr)</option>
+                        </select>
+                      </div>
+                      <div className="modal-actions">
+                        <button
+                          className="btn btn-danger"
+                          onClick={handleClearAllShifts}
+                          disabled={generating}
+                          style={{ marginRight: 'auto' }}
+                        >
+                          Alle löschen
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => setShowGenerateModal(false)}
+                          disabled={generating}
+                        >
+                          Abbrechen
+                        </button>
+                        <button
+                          className="btn btn-primary"
+                          onClick={handleGenerateMultipleWeeks}
+                          disabled={generating}
+                        >
+                          {generating ? 'Wird generiert...' : 'Generieren'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ textAlign: 'center', padding: '1rem' }}>
+                        <p style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Fertig!</p>
+                        <p><strong>{generateResult.generated}</strong> Wochen generiert</p>
+                        <p><strong>{generateResult.skipped}</strong> Wochen übersprungen (hatten bereits Schichten)</p>
+                        <p><strong>{generateResult.totalShifts}</strong> Schichten insgesamt erstellt</p>
+                      </div>
+                      <div className="modal-actions">
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => setShowGenerateModal(false)}
+                        >
+                          Schließen
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <WeekView
             currentWeekStart={currentWeekStart}
@@ -592,6 +845,16 @@ export function AdminDashboard({
               onClose={() => setAssigningShift(null)}
             />
           )}
+
+          {showHourExceptions && (
+            <HourExceptionManager
+              currentWeekStart={currentWeekStart}
+              employees={approvedUsers}
+              adminUid={userData?.id}
+              adminName={userData?.displayName}
+              onClose={() => setShowHourExceptions(false)}
+            />
+          )}
         </div>
       )}
 
@@ -602,6 +865,14 @@ export function AdminDashboard({
           currentYear={currentYear || new Date().getFullYear()}
           onDeleteVacation={async (vacationId) => {
             await onDeleteVacation(vacationId);
+            if (refreshAll) await refreshAll();
+          }}
+          onApproveDeletion={async (vacationId) => {
+            await onApproveDeletion(vacationId);
+            if (refreshAll) await refreshAll();
+          }}
+          onRejectDeletion={async (vacationId) => {
+            await onRejectDeletion(vacationId);
             if (refreshAll) await refreshAll();
           }}
           onUpdateEmployee={async (userId, data) => {
@@ -620,6 +891,7 @@ export function AdminDashboard({
         <UserManagement
           pendingUsers={pendingUsers}
           approvedUsers={approvedUsers}
+          invitations={invitations}
           onApproveUser={async (userId, role) => {
             await onApproveUser(userId, role);
             if (refreshAll) await refreshAll();
@@ -636,6 +908,8 @@ export function AdminDashboard({
             await onChangeUserRole(userId, newRole);
             if (refreshAll) await refreshAll();
           }}
+          onCreateInvitation={onCreateInvitation}
+          onResetPassword={onResetPassword}
         />
       )}
 

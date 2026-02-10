@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, browserSessionPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -14,6 +14,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Session endet wenn Browser/Tab geschlossen wird
+setPersistence(auth, browserSessionPersistence).catch((error) => {
+  console.warn('Could not set session persistence:', error.message);
+});
 
 // Connect to emulators in development
 const useEmulators = import.meta.env.VITE_USE_EMULATORS === 'true';

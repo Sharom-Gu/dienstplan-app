@@ -5,7 +5,9 @@ import {
   createShift,
   updateShift,
   deleteShift,
-  generateWeekShifts
+  generateWeekShifts,
+  generateMultipleWeeksShifts,
+  deleteAllShifts
 } from '../services/shiftService';
 
 export function useShifts(initialDate = new Date()) {
@@ -86,6 +88,28 @@ export function useShifts(initialDate = new Date()) {
     }
   }, [currentWeekStart, fetchShifts]);
 
+  const generateMultipleWeeks = useCallback(async (numberOfWeeks, createdBy, shiftTypes) => {
+    try {
+      const result = await generateMultipleWeeksShifts(new Date(), numberOfWeeks, createdBy, shiftTypes);
+      await fetchShifts();
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [fetchShifts]);
+
+  const clearAllShifts = useCallback(async () => {
+    try {
+      const count = await deleteAllShifts();
+      await fetchShifts();
+      return count;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [fetchShifts]);
+
   return {
     shifts,
     loading,
@@ -98,6 +122,8 @@ export function useShifts(initialDate = new Date()) {
     editShift,
     removeShift,
     generateWeek,
+    generateMultipleWeeks,
+    clearAllShifts,
     refresh: fetchShifts
   };
 }

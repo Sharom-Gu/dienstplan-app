@@ -3,6 +3,7 @@ import {
   getBookingsForWeek,
   getBookingsForUser,
   bookShift,
+  cancelBooking,
   getBooking
 } from '../services/bookingService';
 import { createAuditLog } from '../services/requestService';
@@ -71,6 +72,20 @@ export function useBookings(shifts = [], userId = null) {
     }
   }, [userId, fetchBookings, fetchUserBookings]);
 
+  const cancel = useCallback(async (bookingId) => {
+    if (!userId) throw new Error('Nicht eingeloggt');
+
+    try {
+      await cancelBooking(bookingId);
+      await createAuditLog(userId, 'shift_cancelled', { bookingId });
+      await fetchBookings();
+      await fetchUserBookings();
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [userId, fetchBookings, fetchUserBookings]);
+
   const getBookingsForShiftId = useCallback((shiftId) => {
     return bookings.filter(b => b.shiftId === shiftId && b.status === 'active');
   }, [bookings]);
@@ -90,6 +105,7 @@ export function useBookings(shifts = [], userId = null) {
     loading,
     error,
     book,
+    cancel,
     getBookingsForShiftId,
     getUserBookingForShift,
     refresh

@@ -11,6 +11,8 @@ export function ShiftCard({
   selectedUserId,
   showFreeShifts,
   isAdmin,
+  isLongShiftBlocked = false,
+  userAlreadyBookedToday = false,
   onBook,
   onCancelRequest,
   onSwapRequest,
@@ -80,7 +82,8 @@ export function ShiftCard({
   if (isFull && !isBooked) cardClass += ' full';
   if (shiftPast) cardClass += ' past';
   if (isSelectedUserBooked) cardClass += ' highlighted';
-  if (showFreeShifts && isFreeShift) cardClass += ' free-highlight';
+  if (showFreeShifts && isFreeShift && !isLongShiftBlocked && !userAlreadyBookedToday) cardClass += ' free-highlight';
+  if (isLongShiftBlocked || userAlreadyBookedToday) cardClass += ' blocked';
 
   return (
     <div className={cardClass}>
@@ -170,7 +173,7 @@ export function ShiftCard({
       <div className="shift-actions">
         {!shiftPast && !isAdmin && (
           <>
-            {!isBooked && !isFull && (
+            {!isBooked && !isFull && !isLongShiftBlocked && !userAlreadyBookedToday && (
               <button
                 className="btn btn-small btn-primary"
                 onClick={handleBook}
@@ -178,6 +181,14 @@ export function ShiftCard({
               >
                 Buchen
               </button>
+            )}
+
+            {userAlreadyBookedToday && (
+              <span className="blocked-label">Bereits gebucht heute</span>
+            )}
+
+            {isLongShiftBlocked && !userAlreadyBookedToday && (
+              <span className="blocked-label">Andere Langschicht gebucht</span>
             )}
 
             {userHasPendingBooking && (
@@ -202,7 +213,7 @@ export function ShiftCard({
 
         {isAdmin && (
           <>
-            {!isFull && !shiftPast && (
+            {!isFull && !shiftPast && !isLongShiftBlocked && (
               <button
                 className="btn btn-small btn-success"
                 onClick={() => onAssignEmployee && onAssignEmployee(shift)}
@@ -210,6 +221,9 @@ export function ShiftCard({
               >
                 + Zuweisen
               </button>
+            )}
+            {isLongShiftBlocked && (
+              <span className="blocked-label">Gesperrt</span>
             )}
             <button
               className="btn btn-small btn-secondary"

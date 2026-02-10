@@ -12,7 +12,7 @@ export function VacationView({
   onNextYear,
   onSubmitVacation,
   onSubmitSickDay,
-  onDeleteVacation
+  onRequestDeletion
 }) {
   const [selectedStartDate, setSelectedStartDate] = useState('');
   const [selectedEndDate, setSelectedEndDate] = useState('');
@@ -127,22 +127,29 @@ export function VacationView({
     setSubmitting(true);
     try {
       if (entryType === 'sick') {
-        await onSubmitSickDay(selectedStartDate, selectedEndDate, note);
+        const result = await onSubmitSickDay(selectedStartDate, selectedEndDate, note);
+        if (result?.cancelledBookings > 0) {
+          alert(`Krankheit eingetragen. ${result.cancelledBookings} Schicht(en) wurden automatisch storniert.`);
+        }
       } else {
         await onSubmitVacation(selectedStartDate, selectedEndDate, note);
       }
       setSelectedStartDate('');
       setSelectedEndDate('');
       setNote('');
+    } catch (err) {
+      alert(err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (vacationId, type) => {
-    const message = type === 'sick' ? 'Krankheitstag wirklich löschen?' : 'Urlaub wirklich löschen?';
+  const handleRequestDeletion = async (vacationId, type) => {
+    const message = type === 'sick'
+      ? 'Löschung des Krankheitstags beim Admin beantragen?'
+      : 'Löschung des Urlaubs beim Admin beantragen?';
     if (!confirm(message)) return;
-    await onDeleteVacation(vacationId);
+    await onRequestDeletion(vacationId);
   };
 
   return (
@@ -360,12 +367,26 @@ export function VacationView({
                     <span className="days-count">{vacation.days} Tag{vacation.days !== 1 ? 'e' : ''}</span>
                   </div>
                   {vacation.note && <p className="vacation-note">{vacation.note}</p>}
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => handleDelete(vacation.id, vacation.type)}
-                  >
-                    Löschen
-                  </button>
+                  {vacation.deletionRequested ? (
+                    <span className="deletion-pending-badge">Löschung beantragt</span>
+                  ) : vacation.deletionRejectedAt ? (
+                    <div className="deletion-rejected-info">
+                      <span className="deletion-rejected-badge">Löschung abgelehnt</span>
+                      <button
+                        className="btn btn-warning btn-sm"
+                        onClick={() => handleRequestDeletion(vacation.id, vacation.type)}
+                      >
+                        Erneut beantragen
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="btn btn-warning btn-sm"
+                      onClick={() => handleRequestDeletion(vacation.id, vacation.type)}
+                    >
+                      Löschung beantragen
+                    </button>
+                  )}
                 </div>
               ))}
           </div>

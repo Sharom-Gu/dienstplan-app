@@ -2,7 +2,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, collection, query, where } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -120,4 +121,9 @@ export const getUserData = async (uid) => {
 export const isAdmin = async (uid) => {
   const userData = await getUserData(uid);
   return userData?.role === 'admin';
+};
+
+// Passwort-Reset E-Mail senden
+export const sendPasswordReset = async (email) => {
+  await sendPasswordResetEmail(auth, email);
 };

@@ -2,13 +2,22 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useShifts } from './hooks/useShifts';
 import { useBookings } from './hooks/useBookings';
-import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers } from './services/authService';
-import { getAllVacations, getVacationsForUser, requestVacation, deleteVacation, updateUserVacationDays, updateUserStartDate, addSickDay } from './services/vacationService';
+import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers, sendPasswordReset } from './services/authService';
+import { getAllVacations, getVacationsForUser, requestVacation, deleteVacation, requestVacationDeletion, approveDeletionRequest, rejectDeletionRequest, updateUserVacationDays, updateUserStartDate, addSickDay } from './services/vacationService';
+import { createInvitation, getAllInvitations } from './services/invitationService';
 import { Login } from './components/Auth/Login';
+import { InviteRegister } from './components/Auth/InviteRegister';
 import { Header } from './components/Layout/Header';
 import { UserDashboard } from './components/User/UserDashboard';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { startOfWeek, addDays, format } from 'date-fns';
+
+// URL-Parameter auslesen
+const getInviteToken = () => {
+  const path = window.location.pathname;
+  const match = path.match(/^\/invite\/([a-zA-Z0-9]+)$/);
+  return match ? match[1] : null;
+};
 
 // DEMO-MODUS: auf true setzen um Login zu überspringen
 // Für Produktion auf false setzen!
@@ -147,11 +156,15 @@ const createDemoData = () => {
 };
 
 export default function App() {
-  const { user, userData, loading: authLoading, login, register, logout, isAdmin } = useAuth();
+  const { user, userData, loading: authLoading, login, logout, isAdmin } = useAuth();
   const [activeView, setActiveView] = useState('calendar');
   // Demo-Woche startet bei aktueller Woche
   const [demoWeekStart, setDemoWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [demoViewMode, setDemoViewMode] = useState('user'); // 'admin' oder 'user'
+
+  // Einladungslink-Handling
+  const [inviteToken, setInviteToken] = useState(() => getInviteToken());
+  const [invitations, setInvitations] = useState([]);
 
   const demoData = useMemo(() => createDemoData(), []);
 
@@ -166,6 +179,8 @@ export default function App() {
     editShift,
     removeShift,
     generateWeek,
+    generateMultipleWeeks,
+    clearAllShifts,
     refresh: refreshShifts
   } = useShifts();
 
@@ -173,6 +188,7 @@ export default function App() {
     bookings,
     loading: bookingsLoading,
     book,
+    cancel,
     refresh: refreshBookings
   } = useBookings(shifts, user?.uid);
 
@@ -196,7 +212,8 @@ export default function App() {
   }, [isAdmin]);
 
   const refreshApprovedUsers = useCallback(async () => {
-    if (isAdmin) {
+    // Lade genehmigte Benutzer für alle eingeloggten User (für Mitarbeiter-Filter)
+    if (user) {
       try {
         const users = await getApprovedUsers();
         setApprovedUsersList(users);
@@ -205,15 +222,17 @@ export default function App() {
         console.error('Error fetching approved users:', err);
       }
     }
-  }, [isAdmin]);
+  }, [user]);
 
-  // Fetch pending users and employees when admin logs in
+  // Fetch pending users for admin, employees for all users
   useEffect(() => {
-    if (isAdmin) {
-      refreshPendingUsers();
+    if (user) {
       refreshApprovedUsers();
+      if (isAdmin) {
+        refreshPendingUsers();
+      }
     }
-  }, [isAdmin, refreshPendingUsers, refreshApprovedUsers]);
+  }, [user, isAdmin, refreshPendingUsers, refreshApprovedUsers]);
 
   const handleApproveUser = async (userId, role) => {
     await approveUser(userId, role);
@@ -266,17 +285,39 @@ export default function App() {
   };
 
   const handleSubmitSickDay = async (startDate, endDate, note) => {
-    await requestVacation(user.uid, userData?.displayName, startDate, endDate, note, 'sick');
+    const result = await requestVacation(user.uid, userData?.displayName, startDate, endDate, note, 'sick');
     await refreshVacations();
+    await refreshBookings(); // Buchungen aktualisieren (könnten storniert worden sein)
+    return result; // Gibt cancelledBookings zurück
   };
 
   const handleAddSickDay = async (userId, userName, startDate, endDate, note) => {
-    await addSickDay(userId, userName, startDate, endDate, note);
+    const result = await addSickDay(userId, userName, startDate, endDate, note);
     await refreshVacations();
+    await refreshBookings();
+    return result;
   };
 
   const handleDeleteVacation = async (vacationId) => {
     await deleteVacation(vacationId);
+    await refreshVacations();
+  };
+
+  // User beantragt Löschung
+  const handleRequestDeletion = async (vacationId) => {
+    await requestVacationDeletion(vacationId);
+    await refreshVacations();
+  };
+
+  // Admin genehmigt Löschung
+  const handleApproveDeletion = async (vacationId) => {
+    await approveDeletionRequest(vacationId);
+    await refreshVacations();
+  };
+
+  // Admin lehnt Löschung ab
+  const handleRejectDeletion = async (vacationId) => {
+    await rejectDeletionRequest(vacationId);
     await refreshVacations();
   };
 
@@ -290,6 +331,49 @@ export default function App() {
     await refreshApprovedUsers();
   };
 
+  // Einladungen laden (nur für Admin)
+  const refreshInvitations = useCallback(async () => {
+    if (isAdmin) {
+      try {
+        const invites = await getAllInvitations();
+        setInvitations(invites);
+      } catch (err) {
+        console.error('Error fetching invitations:', err);
+      }
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      refreshInvitations();
+    }
+  }, [isAdmin, refreshInvitations]);
+
+  // Neue Einladung erstellen
+  const handleCreateInvitation = async () => {
+    try {
+      const result = await createInvitation(user.uid, userData.displayName);
+      const inviteUrl = `${window.location.origin}/invite/${result.token}`;
+      await refreshInvitations();
+      return inviteUrl;
+    } catch (err) {
+      console.error('Error creating invitation:', err);
+      throw err;
+    }
+  };
+
+  // Nach erfolgreicher Registrierung über Einladung
+  const handleInviteSuccess = () => {
+    // URL bereinigen und zur normalen App zurückkehren
+    window.history.pushState({}, '', '/');
+    setInviteToken(null);
+  };
+
+  const handleInviteBack = () => {
+    window.history.pushState({}, '', '/');
+    setInviteToken(null);
+  };
+
   // Refresh data when shifts change
   useEffect(() => {
     if (shifts.length > 0) {
@@ -298,7 +382,7 @@ export default function App() {
   }, [shifts, refreshBookings]);
 
   const refreshAll = async () => {
-    await Promise.all([refreshShifts(), refreshBookings(), refreshPendingUsers(), refreshApprovedUsers(), refreshVacations()]);
+    await Promise.all([refreshShifts(), refreshBookings(), refreshPendingUsers(), refreshApprovedUsers(), refreshVacations(), refreshInvitations()]);
   };
 
   // Demo-Modus Navigation Funktionen
@@ -415,11 +499,24 @@ export default function App() {
     );
   }
 
+  // Show invite registration if invite token is present
+  if (inviteToken) {
+    return (
+      <div className="app">
+        <InviteRegister
+          token={inviteToken}
+          onSuccess={handleInviteSuccess}
+          onBack={handleInviteBack}
+        />
+      </div>
+    );
+  }
+
   // Show login if not authenticated
   if (!user) {
     return (
       <div className="app">
-        <Login onLogin={login} onRegister={register} />
+        <Login onLogin={login} />
       </div>
     );
   }
@@ -440,6 +537,7 @@ export default function App() {
             pendingUsers={pendingUsers}
             approvedUsers={approvedUsersList}
             employees={employees}
+            invitations={invitations}
             vacations={vacations}
             currentYear={currentYear}
             auditLogs={auditLogs}
@@ -450,12 +548,17 @@ export default function App() {
             onAddShift={addShift}
             onEditShift={editShift}
             onDeleteShift={removeShift}
-            onGenerateWeek={generateWeek}
+            onGenerateMultipleWeeks={generateMultipleWeeks}
+            onClearAllShifts={clearAllShifts}
             onApproveUser={handleApproveUser}
             onRejectUser={handleRejectUser}
             onRevokeUser={handleRevokeUser}
             onChangeUserRole={handleChangeUserRole}
+            onCreateInvitation={handleCreateInvitation}
+            onResetPassword={sendPasswordReset}
             onDeleteVacation={handleDeleteVacation}
+            onApproveDeletion={handleApproveDeletion}
+            onRejectDeletion={handleRejectDeletion}
             onUpdateEmployee={handleUpdateEmployee}
             onAddSickDay={handleAddSickDay}
             refreshAll={refreshAll}
@@ -465,6 +568,7 @@ export default function App() {
             userData={userData}
             shifts={shifts}
             bookings={bookings}
+            employees={employees}
             vacations={userVacations}
             allVacations={vacations}
             currentWeekStart={currentWeekStart}
@@ -476,9 +580,10 @@ export default function App() {
             onPrevYear={() => setCurrentYear(y => y - 1)}
             onNextYear={() => setCurrentYear(y => y + 1)}
             onBook={book}
+            onCancelRequest={cancel}
             onSubmitVacation={handleSubmitVacation}
             onSubmitSickDay={handleSubmitSickDay}
-            onDeleteVacation={handleDeleteVacation}
+            onRequestDeletion={handleRequestDeletion}
             refreshBookings={refreshBookings}
           />
         )}

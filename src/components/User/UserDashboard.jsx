@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { WeekView } from '../Calendar/WeekView';
 import { WeeklyHours } from './WeeklyHours';
 import { PersonalSchedule } from './PersonalSchedule';
@@ -8,6 +8,7 @@ export function UserDashboard({
   userData,
   shifts,
   bookings,
+  employees = [],
   vacations = [],
   allVacations = [],
   currentWeekStart,
@@ -23,23 +24,12 @@ export function UserDashboard({
   onSwapRequest,
   onSubmitVacation,
   onSubmitSickDay,
-  onDeleteVacation,
+  onRequestDeletion,
   refreshBookings
 }) {
   const [activeView, setActiveView] = useState('team'); // 'team', 'personal', oder 'vacation'
   const [selectedUserId, setSelectedUserId] = useState('');
   const [showFreeShifts, setShowFreeShifts] = useState(false);
-
-  // Alle Nutzer aus den Buchungen extrahieren
-  const allUsers = useMemo(() => {
-    const userMap = new Map();
-    bookings.forEach(booking => {
-      if (booking.userId && booking.userName) {
-        userMap.set(booking.userId, booking.userName);
-      }
-    });
-    return Array.from(userMap, ([id, name]) => ({ id, name }));
-  }, [bookings]);
 
   // Zeige Wochenstunden nur wenn kein anderer Nutzer ausgewählt ist (leer oder eigene ID)
   const showOwnHours = !selectedUserId || selectedUserId === userData?.id;
@@ -65,7 +55,7 @@ export function UserDashboard({
             className={activeView === 'vacation' ? 'active' : ''}
             onClick={() => setActiveView('vacation')}
           >
-            Urlaub
+            Urlaub / Krankheit
           </button>
         </div>
       </div>
@@ -81,7 +71,7 @@ export function UserDashboard({
           onNextYear={onNextYear}
           onSubmitVacation={onSubmitVacation}
           onSubmitSickDay={onSubmitSickDay}
-          onDeleteVacation={onDeleteVacation}
+          onRequestDeletion={onRequestDeletion}
         />
       ) : activeView === 'personal' ? (
         /* Persönlicher Dienstplan */
@@ -105,8 +95,8 @@ export function UserDashboard({
               onChange={(e) => setSelectedUserId(e.target.value)}
             >
               <option value="">-- Alle Mitarbeiter --</option>
-              {allUsers.map(user => (
-                <option key={user.id} value={user.id}>{user.name}</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name}</option>
               ))}
             </select>
             <button
@@ -121,6 +111,7 @@ export function UserDashboard({
             <WeeklyHours
               shifts={shifts}
               bookings={bookings}
+              vacations={allVacations}
               userId={userData?.id}
               minHours={userData?.weeklyMinHours || 20}
               currentWeekStart={currentWeekStart}
