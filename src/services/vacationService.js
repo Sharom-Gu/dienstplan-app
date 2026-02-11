@@ -95,8 +95,8 @@ export const requestVacation = async (userId, userName, startDate, endDate, note
     endDate,
     days,
     note,
-    type, // 'vacation' oder 'sick'
-    status: 'approved',
+    type, // 'vacation', 'sick' oder 'bildungsurlaub'
+    status: 'pending', // Muss vom Admin genehmigt werden
     createdAt: serverTimestamp(),
     // Bei Krankheit: speichere stornierte Buchungen
     ...(type === 'sick' && bookingsOnDates.length > 0 ? {
@@ -176,6 +176,36 @@ export const getDeletionRequests = async () => {
   return requests.sort((a, b) => {
     const aTime = a.deletionRequestedAt?.toDate?.() || new Date(0);
     const bTime = b.deletionRequestedAt?.toDate?.() || new Date(0);
+    return bTime - aTime;
+  });
+};
+
+// Urlaubs-/Krankheitsantrag genehmigen (Admin)
+export const approveVacationRequest = async (vacationId) => {
+  const vacationRef = doc(db, 'vacations', vacationId);
+  await updateDoc(vacationRef, {
+    status: 'approved',
+    approvedAt: serverTimestamp()
+  });
+};
+
+// Urlaubs-/Krankheitsantrag ablehnen (Admin)
+export const rejectVacationRequest = async (vacationId) => {
+  const vacationRef = doc(db, 'vacations', vacationId);
+  await updateDoc(vacationRef, {
+    status: 'rejected',
+    rejectedAt: serverTimestamp()
+  });
+};
+
+// Alle ausstehenden Anträge abrufen (Admin)
+export const getPendingVacationRequests = async () => {
+  const q = query(vacationsCollection, where('status', '==', 'pending'));
+  const snapshot = await getDocs(q);
+  const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return requests.sort((a, b) => {
+    const aTime = a.createdAt?.toDate?.() || new Date(0);
+    const bTime = b.createdAt?.toDate?.() || new Date(0);
     return bTime - aTime;
   });
 };

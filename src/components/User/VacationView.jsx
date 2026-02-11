@@ -451,10 +451,14 @@ export function VacationView({
               .filter(v => new Date(v.startDate).getFullYear() === currentYear)
               .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
               .map(vacation => (
-                <div key={vacation.id} className={`vacation-item ${vacation.type === 'sick' ? 'sick' : vacation.type === 'bildungsurlaub' ? 'bildungsurlaub' : ''}`}>
+                <div key={vacation.id} className={`vacation-item ${vacation.type === 'sick' ? 'sick' : vacation.type === 'bildungsurlaub' ? 'bildungsurlaub' : ''} ${vacation.status === 'pending' ? 'status-pending' : vacation.status === 'rejected' ? 'status-rejected' : ''}`}>
                   <div className="vacation-dates">
                     <span className={`entry-type-badge ${vacation.type}`}>
                       {vacation.type === 'sick' ? '🤒 Krank' : vacation.type === 'bildungsurlaub' ? '🎓 Bildungsurlaub' : '🌴 Urlaub'}
+                    </span>
+                    <span className={`status-badge status-${vacation.status || 'approved'}`}>
+                      {vacation.status === 'pending' ? '⏳ Ausstehend' :
+                       vacation.status === 'rejected' ? '❌ Abgelehnt' : '✓ Genehmigt'}
                     </span>
                     <span className="date-range">
                       {format(parseISO(vacation.startDate), 'dd.MM.yyyy', { locale: de })}
@@ -465,25 +469,29 @@ export function VacationView({
                     <span className="days-count">{vacation.days} Tag{vacation.days !== 1 ? 'e' : ''}</span>
                   </div>
                   {vacation.note && <p className="vacation-note">{vacation.note}</p>}
-                  {vacation.deletionRequested ? (
-                    <span className="deletion-pending-badge">Löschung beantragt</span>
-                  ) : vacation.deletionRejectedAt ? (
-                    <div className="deletion-rejected-info">
-                      <span className="deletion-rejected-badge">Löschung abgelehnt</span>
-                      <button
-                        className="btn btn-warning btn-sm"
-                        onClick={() => handleRequestDeletion(vacation.id, vacation.type)}
-                      >
-                        Erneut beantragen
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      className="btn btn-warning btn-sm"
-                      onClick={() => handleRequestDeletion(vacation.id, vacation.type)}
-                    >
-                      Löschung beantragen
-                    </button>
+                  {vacation.status === 'approved' && (
+                    <>
+                      {vacation.deletionRequested ? (
+                        <span className="deletion-pending-badge">Löschung beantragt</span>
+                      ) : vacation.deletionRejectedAt ? (
+                        <div className="deletion-rejected-info">
+                          <span className="deletion-rejected-badge">Löschung abgelehnt</span>
+                          <button
+                            className="btn btn-warning btn-sm"
+                            onClick={() => handleRequestDeletion(vacation.id, vacation.type)}
+                          >
+                            Erneut beantragen
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="btn btn-warning btn-sm"
+                          onClick={() => handleRequestDeletion(vacation.id, vacation.type)}
+                        >
+                          Löschung beantragen
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               ))}

@@ -3,7 +3,7 @@ import { useAuth } from './hooks/useAuth';
 import { useShifts } from './hooks/useShifts';
 import { useBookings } from './hooks/useBookings';
 import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers, sendPasswordReset, updateUserBirthDate } from './services/authService';
-import { getAllVacations, getVacationsForUser, requestVacation, deleteVacation, requestVacationDeletion, approveDeletionRequest, rejectDeletionRequest, updateUserVacationDays, updateUserStartDate, addSickDay } from './services/vacationService';
+import { getAllVacations, getVacationsForUser, requestVacation, deleteVacation, requestVacationDeletion, approveDeletionRequest, rejectDeletionRequest, approveVacationRequest, rejectVacationRequest, updateUserVacationDays, updateUserStartDate, addSickDay } from './services/vacationService';
 import { createInvitation, getAllInvitations } from './services/invitationService';
 import { Login } from './components/Auth/Login';
 import { InviteRegister } from './components/Auth/InviteRegister';
@@ -330,6 +330,18 @@ export default function App() {
     await refreshVacations();
   };
 
+  // Admin genehmigt Urlaubsantrag
+  const handleApproveVacation = async (vacationId) => {
+    await approveVacationRequest(vacationId);
+    await refreshVacations();
+  };
+
+  // Admin lehnt Urlaubsantrag ab
+  const handleRejectVacation = async (vacationId) => {
+    await rejectVacationRequest(vacationId);
+    await refreshVacations();
+  };
+
   // User aktualisiert Geburtsdatum
   const handleUpdateBirthDate = async (birthDate) => {
     await updateUserBirthDate(user.uid, birthDate);
@@ -630,6 +642,8 @@ export default function App() {
             onDeleteVacation={handleDeleteVacation}
             onApproveDeletion={handleApproveDeletion}
             onRejectDeletion={handleRejectDeletion}
+            onApproveVacation={handleApproveVacation}
+            onRejectVacation={handleRejectVacation}
             onUpdateEmployee={handleUpdateEmployee}
             onAddSickDay={handleAddSickDay}
             refreshAll={refreshAll}

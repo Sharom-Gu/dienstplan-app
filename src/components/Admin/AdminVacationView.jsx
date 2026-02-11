@@ -11,6 +11,8 @@ export function AdminVacationView({
   onDeleteVacation,
   onApproveDeletion,
   onRejectDeletion,
+  onApproveVacation,
+  onRejectVacation,
   onUpdateEmployee,
   onAddSickDay,
   onRefresh
@@ -234,6 +236,25 @@ export function AdminVacationView({
     return vacations.filter(v => v.deletionRequested === true);
   }, [vacations]);
 
+  // Ausstehende Urlaubs-/Krankheitsanträge filtern
+  const pendingRequests = useMemo(() => {
+    return vacations.filter(v => v.status === 'pending');
+  }, [vacations]);
+
+  const handleApproveVacation = async (vacationId, type) => {
+    const typeLabel = type === 'sick' ? 'Krankheitsmeldung' :
+                      type === 'bildungsurlaub' ? 'Bildungsurlaub' : 'Urlaubsantrag';
+    if (!confirm(`${typeLabel} genehmigen?`)) return;
+    await onApproveVacation(vacationId);
+  };
+
+  const handleRejectVacation = async (vacationId, type) => {
+    const typeLabel = type === 'sick' ? 'Krankheitsmeldung' :
+                      type === 'bildungsurlaub' ? 'Bildungsurlaub' : 'Urlaubsantrag';
+    if (!confirm(`${typeLabel} ablehnen?`)) return;
+    await onRejectVacation(vacationId);
+  };
+
   const handleApproveDeletion = async (vacationId, type) => {
     const message = type === 'sick'
       ? 'Löschung des Krankheitstags genehmigen?'
@@ -353,6 +374,51 @@ export function AdminVacationView({
             {addingSick ? 'Wird eingetragen...' : 'Krankheit eintragen'}
           </button>
         </form>
+      </div>
+
+      {/* Ausstehende Anträge */}
+      <div className="pending-requests-section">
+        <h3>Ausstehende Anträge ({pendingRequests.length})</h3>
+        {pendingRequests.length === 0 ? (
+          <p className="empty-text">Keine ausstehenden Anträge.</p>
+        ) : (
+          <div className="pending-requests-list">
+            {pendingRequests.map(request => (
+              <div key={request.id} className={`pending-request-item ${request.type}`}>
+                <div className="request-info">
+                  <span className={`entry-type-badge ${request.type === 'sick' ? 'sick' : request.type === 'bildungsurlaub' ? 'bildungsurlaub' : 'vacation'}`}>
+                    {request.type === 'sick' ? '🤒 Krank' : request.type === 'bildungsurlaub' ? '🎓 Bildungsurlaub' : '🌴 Urlaub'}
+                  </span>
+                  <span className="request-employee">{request.userName}</span>
+                  <span className="date-range">
+                    {format(parseISO(request.startDate), 'dd.MM.yyyy', { locale: de })}
+                    {request.startDate !== request.endDate && (
+                      <> - {format(parseISO(request.endDate), 'dd.MM.yyyy', { locale: de })}</>
+                    )}
+                  </span>
+                  <span className="days-count">{request.days} Tag{request.days !== 1 ? 'e' : ''}</span>
+                </div>
+                {request.note && (
+                  <p className="request-note">Notiz: {request.note}</p>
+                )}
+                <div className="request-actions">
+                  <button
+                    className="btn btn-success btn-sm"
+                    onClick={() => handleApproveVacation(request.id, request.type)}
+                  >
+                    Genehmigen
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => handleRejectVacation(request.id, request.type)}
+                  >
+                    Ablehnen
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Löschungsanträge */}

@@ -571,6 +571,8 @@ export function AdminDashboard({
   onDeleteVacation,
   onApproveDeletion,
   onRejectDeletion,
+  onApproveVacation,
+  onRejectVacation,
   onUpdateEmployee,
   onAddSickDay,
   refreshAll
@@ -692,6 +694,9 @@ export function AdminDashboard({
           onClick={() => setActiveTab('vacation')}
         >
           Urlaub
+          {vacations.filter(v => v.status === 'pending').length > 0 && (
+            <span className="badge warning">{vacations.filter(v => v.status === 'pending').length}</span>
+          )}
         </button>
         <button
           className={`tab ${activeTab === 'users' ? 'active' : ''}`}
@@ -873,6 +878,14 @@ export function AdminDashboard({
           }}
           onRejectDeletion={async (vacationId) => {
             await onRejectDeletion(vacationId);
+            if (refreshAll) await refreshAll();
+          }}
+          onApproveVacation={async (vacationId) => {
+            await onApproveVacation(vacationId);
+            if (refreshAll) await refreshAll();
+          }}
+          onRejectVacation={async (vacationId) => {
+            await onRejectVacation(vacationId);
             if (refreshAll) await refreshAll();
           }}
           onUpdateEmployee={async (userId, data) => {
