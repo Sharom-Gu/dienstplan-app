@@ -12,7 +12,8 @@ export function VacationView({
   onNextYear,
   onSubmitVacation,
   onSubmitSickDay,
-  onRequestDeletion
+  onRequestDeletion,
+  onUpdateBirthDate
 }) {
   const [selectedStartDate, setSelectedStartDate] = useState('');
   const [selectedEndDate, setSelectedEndDate] = useState('');
@@ -21,6 +22,8 @@ export function VacationView({
   const [submitting, setSubmitting] = useState(false);
   const [viewMonth, setViewMonth] = useState(new Date());
   const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [birthDate, setBirthDate] = useState(userData?.birthDate || '');
+  const [savingBirthDate, setSavingBirthDate] = useState(false);
 
   // Berechne verwendete und verbleibende Urlaubstage sowie Krankheitstage
   const vacationStats = useMemo(() => {
@@ -152,6 +155,16 @@ export function VacationView({
     await onRequestDeletion(vacationId);
   };
 
+  const handleSaveBirthDate = async () => {
+    if (!birthDate) return;
+    setSavingBirthDate(true);
+    try {
+      await onUpdateBirthDate(birthDate);
+    } finally {
+      setSavingBirthDate(false);
+    }
+  };
+
   return (
     <div className="vacation-view">
       {/* Übersicht */}
@@ -173,6 +186,26 @@ export function VacationView({
         <div className="stat-card sick">
           <span className="stat-label">Krankheitstage</span>
           <span className="stat-value sick">{vacationStats.sickDays}</span>
+        </div>
+        <div className="stat-card birthday">
+          <span className="stat-label">Mein Geburtstag</span>
+          <div className="birthday-input-group">
+            <input
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
+              className="birthday-input"
+            />
+            {birthDate !== (userData?.birthDate || '') && (
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={handleSaveBirthDate}
+                disabled={savingBirthDate}
+              >
+                {savingBirthDate ? '...' : 'Speichern'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

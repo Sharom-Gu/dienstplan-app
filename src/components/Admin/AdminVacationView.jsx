@@ -58,6 +58,18 @@ export function AdminVacationView({
     });
   };
 
+  // Prüfe ob ein Mitarbeiter an diesem Tag Geburtstag hat
+  const getBirthdaysForDay = (day) => {
+    const dayMonth = day.getMonth();
+    const dayDate = day.getDate();
+
+    return employees.filter(emp => {
+      if (!emp.birthDate) return false;
+      const birthDate = parseISO(emp.birthDate);
+      return birthDate.getMonth() === dayMonth && birthDate.getDate() === dayDate;
+    });
+  };
+
   // Mapping von userId zu Farbindex
   const userColorMap = useMemo(() => {
     const map = new Map();
@@ -501,16 +513,31 @@ export function AdminVacationView({
 
             {calendarDays.map(day => {
               const dayVacations = getVacationsForDay(day);
+              const dayBirthdays = getBirthdaysForDay(day);
               const isToday = isSameDay(day, new Date());
               const weekend = isWeekend(day);
               const hasVacation = dayVacations.length > 0;
+              const hasBirthday = dayBirthdays.length > 0;
 
               return (
                 <div
                   key={day.toISOString()}
-                  className={`calendar-day ${weekend ? 'weekend' : ''} ${isToday ? 'today' : ''} ${hasVacation ? 'has-vacation' : ''}`}
+                  className={`calendar-day ${weekend ? 'weekend' : ''} ${isToday ? 'today' : ''} ${hasVacation ? 'has-vacation' : ''} ${hasBirthday ? 'has-birthday' : ''}`}
                 >
                   <span className="day-number">{format(day, 'd')}</span>
+                  {hasBirthday && (
+                    <div className="birthday-names">
+                      {dayBirthdays.map(emp => (
+                        <span
+                          key={emp.id}
+                          className="birthday-name"
+                          title={`🎂 ${emp.displayName || emp.name} hat Geburtstag!`}
+                        >
+                          🎂 {(emp.displayName || emp.name)?.split(' ')[0]}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {hasVacation && (
                     <div className="vacation-names">
                       {dayVacations.slice(0, 2).map(v => (

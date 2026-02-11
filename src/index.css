@@ -1614,6 +1614,26 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   border-color: var(--accent-red);
 }
 
+.stat-card.birthday {
+  border-color: #ec4899;
+}
+
+.birthday-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.birthday-input {
+  background: var(--surface-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
 /* Vacation Form */
 .vacation-form-card {
   background: var(--secondary-bg);
@@ -1814,6 +1834,32 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 .calendar-day.has-vacation {
   background: rgba(0, 200, 117, 0.1);
+}
+
+.calendar-day.has-birthday {
+  background: rgba(236, 72, 153, 0.15);
+}
+
+.calendar-day.has-birthday.has-vacation {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.15) 50%, rgba(0, 200, 117, 0.1) 50%);
+}
+
+.birthday-names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.birthday-name {
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(236, 72, 153, 0.3);
+  color: #ec4899;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .calendar-day.own-vacation {

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useShifts } from './hooks/useShifts';
 import { useBookings } from './hooks/useBookings';
-import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers, sendPasswordReset } from './services/authService';
+import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers, sendPasswordReset, updateUserBirthDate } from './services/authService';
 import { getAllVacations, getVacationsForUser, requestVacation, deleteVacation, requestVacationDeletion, approveDeletionRequest, rejectDeletionRequest, updateUserVacationDays, updateUserStartDate, addSickDay } from './services/vacationService';
 import { createInvitation, getAllInvitations } from './services/invitationService';
 import { Login } from './components/Auth/Login';
@@ -321,6 +321,12 @@ export default function App() {
     await refreshVacations();
   };
 
+  // User aktualisiert Geburtsdatum
+  const handleUpdateBirthDate = async (birthDate) => {
+    await updateUserBirthDate(user.uid, birthDate);
+    await refreshApprovedUsers(); // Aktualisiert die Mitarbeiterliste
+  };
+
   const handleUpdateEmployee = async (userId, data) => {
     if (data.vacationDays !== undefined) {
       await updateUserVacationDays(userId, data.vacationDays);
@@ -584,6 +590,7 @@ export default function App() {
             onSubmitVacation={handleSubmitVacation}
             onSubmitSickDay={handleSubmitSickDay}
             onRequestDeletion={handleRequestDeletion}
+            onUpdateBirthDate={handleUpdateBirthDate}
             refreshBookings={refreshBookings}
           />
         )}

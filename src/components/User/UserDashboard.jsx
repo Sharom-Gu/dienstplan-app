@@ -25,6 +25,7 @@ export function UserDashboard({
   onSubmitVacation,
   onSubmitSickDay,
   onRequestDeletion,
+  onUpdateBirthDate,
   refreshBookings
 }) {
   const [activeView, setActiveView] = useState('team'); // 'team', 'personal', oder 'vacation'
@@ -72,6 +73,7 @@ export function UserDashboard({
           onSubmitVacation={onSubmitVacation}
           onSubmitSickDay={onSubmitSickDay}
           onRequestDeletion={onRequestDeletion}
+          onUpdateBirthDate={onUpdateBirthDate}
         />
       ) : activeView === 'personal' ? (
         /* Persönlicher Dienstplan */
