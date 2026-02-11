@@ -186,7 +186,10 @@ export function VacationView({
       ? 'Löschung des Krankheitstags beim Admin beantragen?'
       : 'Löschung des Urlaubs beim Admin beantragen?';
     if (!confirm(message)) return;
-    await onRequestDeletion(vacationId);
+
+    // Finde die Urlaubsdaten für die Teams-Benachrichtigung
+    const vacationData = vacations.find(v => v.id === vacationId);
+    await onRequestDeletion(vacationId, vacationData);
   };
 
   const handleSaveBirthDate = async () => {

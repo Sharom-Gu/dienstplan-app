@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, collection, query, where } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { notifyNewUserRegistration } from './teamsNotificationService';
 
 export const loginUser = async (email, password) => {
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -44,6 +45,13 @@ export const registerUser = async (email, password, displayName, role = 'user') 
     weeklyMinHours: 20,
     createdAt: new Date()
   });
+
+  // Teams-Benachrichtigung an Admin senden
+  try {
+    await notifyNewUserRegistration(displayName, email);
+  } catch (err) {
+    console.error('Teams Benachrichtigung fehlgeschlagen:', err);
+  }
 
   // Nach Registrierung automatisch ausloggen (muss erst genehmigt werden)
   await signOut(auth);

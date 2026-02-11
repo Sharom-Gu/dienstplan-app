@@ -313,8 +313,8 @@ export default function App() {
   };
 
   // User beantragt Löschung
-  const handleRequestDeletion = async (vacationId) => {
-    await requestVacationDeletion(vacationId);
+  const handleRequestDeletion = async (vacationId, vacationData = null) => {
+    await requestVacationDeletion(vacationId, '', vacationData);
     await refreshVacations();
   };
 

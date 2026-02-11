@@ -12,6 +12,7 @@ import {
 import { db } from './firebase';
 import { format, eachDayOfInterval, parseISO, isWeekend } from 'date-fns';
 import { isHoliday } from './holidayService';
+import { notifyVacationRequest, notifyDeletionRequest } from './teamsNotificationService';
 
 const vacationsCollection = collection(db, 'vacations');
 const bookingsCollection = collection(db, 'bookings');
@@ -103,6 +104,13 @@ export const requestVacation = async (userId, userName, startDate, endDate, note
     } : {})
   });
 
+  // Teams-Benachrichtigung senden
+  try {
+    await notifyVacationRequest(userName, startDate, endDate, days, type);
+  } catch (err) {
+    console.error('Teams Benachrichtigung fehlgeschlagen:', err);
+  }
+
   return {
     id: docRef.id,
     cancelledBookings: type === 'sick' ? bookingsOnDates.length : 0
@@ -120,7 +128,7 @@ export const deleteVacation = async (vacationId) => {
 };
 
 // Löschung beantragen (User)
-export const requestVacationDeletion = async (vacationId, reason = '') => {
+export const requestVacationDeletion = async (vacationId, reason = '', vacationData = null) => {
   const vacationRef = doc(db, 'vacations', vacationId);
   await updateDoc(vacationRef, {
     deletionRequested: true,
@@ -128,6 +136,20 @@ export const requestVacationDeletion = async (vacationId, reason = '') => {
     deletionReason: reason,
     deletionRejectedAt: null // Zurücksetzen bei erneutem Antrag
   });
+
+  // Teams-Benachrichtigung senden
+  if (vacationData) {
+    try {
+      await notifyDeletionRequest(
+        vacationData.userName,
+        vacationData.startDate,
+        vacationData.endDate,
+        vacationData.type
+      );
+    } catch (err) {
+      console.error('Teams Benachrichtigung fehlgeschlagen:', err);
+    }
+  }
 };
 
 // Löschungsantrag genehmigen (Admin) - löscht den Eintrag
