@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { format, startOfWeek, addDays } from 'date-fns';
+import { isHoliday } from './holidayService';
 
 const shiftsCollection = collection(db, 'shifts');
 
@@ -75,7 +76,13 @@ export const generateWeekShifts = async (weekStart, createdBy, shiftTypes = ['fr
   const createdShifts = [];
 
   for (let i = 0; i < 5; i++) { // Mo-Fr
-    const date = format(addDays(weekStart, i), 'yyyy-MM-dd');
+    const dayDate = addDays(weekStart, i);
+    const date = format(dayDate, 'yyyy-MM-dd');
+
+    // Keine Schichten an Feiertagen erstellen
+    if (isHoliday(dayDate)) {
+      continue;
+    }
 
     for (const type of shiftTypes) {
       const template = defaultShiftTypes[type];

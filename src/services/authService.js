@@ -65,12 +65,44 @@ export const getApprovedUsers = async () => {
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
-// Benutzer genehmigen
-export const approveUser = async (userId, role = 'user') => {
+// Urlaubstage basierend auf Rolle ermitteln
+const getVacationDaysByRole = (role) => {
+  switch (role) {
+    case 'arzt':
+    case 'mfa':
+      return 30;
+    case 'werkstudent':
+    case 'minijobber':
+    default:
+      return 15;
+  }
+};
+
+// Wochenstunden basierend auf Rolle ermitteln
+const getWeeklyHoursByRole = (role) => {
+  switch (role) {
+    case 'arzt':
+    case 'mfa':
+      return null; // Keine Schichtplanung
+    case 'minijobber':
+      return 10; // Minijobber max 10h
+    case 'werkstudent':
+    default:
+      return 20;
+  }
+};
+
+// Benutzer genehmigen (mit Rollen-spezifischen Einstellungen)
+export const approveUser = async (userId, role = 'mfa') => {
   const userRef = doc(db, 'users', userId);
+  const vacationDays = getVacationDaysByRole(role);
+  const weeklyMinHours = getWeeklyHoursByRole(role);
+
   await updateDoc(userRef, {
     status: 'approved',
     role: role,
+    vacationDays: vacationDays,
+    weeklyMinHours: weeklyMinHours,
     approvedAt: new Date()
   });
 };
@@ -93,11 +125,16 @@ export const revokeUser = async (userId) => {
   });
 };
 
-// Benutzerrolle ändern
+// Benutzerrolle ändern (inkl. Anpassung der Urlaubstage und Wochenstunden)
 export const changeUserRole = async (userId, newRole) => {
   const userRef = doc(db, 'users', userId);
+  const vacationDays = getVacationDaysByRole(newRole);
+  const weeklyMinHours = getWeeklyHoursByRole(newRole);
+
   await updateDoc(userRef, {
-    role: newRole
+    role: newRole,
+    vacationDays: vacationDays,
+    weeklyMinHours: weeklyMinHours
   });
 };
 

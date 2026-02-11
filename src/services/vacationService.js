@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { format, eachDayOfInterval, parseISO, isWeekend } from 'date-fns';
+import { isHoliday } from './holidayService';
 
 const vacationsCollection = collection(db, 'vacations');
 const bookingsCollection = collection(db, 'bookings');
@@ -211,7 +212,7 @@ export const getUsedVacationDays = async (userId, year) => {
     .reduce((sum, v) => sum + (v.days || 0), 0);
 };
 
-// Berechne Arbeitstage zwischen zwei Daten (Mo-Fr)
+// Berechne Arbeitstage zwischen zwei Daten (Mo-Fr, ohne Feiertage)
 export const calculateBusinessDays = (startDate, endDate) => {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -220,7 +221,8 @@ export const calculateBusinessDays = (startDate, endDate) => {
   const current = new Date(start);
   while (current <= end) {
     const dayOfWeek = current.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+    // Nur Werktage zählen (Mo-Fr) und keine Feiertage
+    if (dayOfWeek !== 0 && dayOfWeek !== 6 && !isHoliday(current)) {
       count++;
     }
     current.setDate(current.getDate() + 1);

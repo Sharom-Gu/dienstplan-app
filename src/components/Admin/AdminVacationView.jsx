@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, isSameDay, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { calculateProratedVacationDays, calculateBusinessDays } from '../../services/vacationService';
+import { getHolidayInfo } from '../../services/holidayService';
 
 export function AdminVacationView({
   vacations,
@@ -362,8 +363,8 @@ export function AdminVacationView({
             {deletionRequests.map(request => (
               <div key={request.id} className={`deletion-request-item ${request.type === 'sick' ? 'sick' : ''}`}>
                 <div className="request-info">
-                  <span className={`entry-type-badge ${request.type === 'sick' ? 'sick' : 'vacation'}`}>
-                    {request.type === 'sick' ? 'Krank' : 'Urlaub'}
+                  <span className={`entry-type-badge ${request.type === 'sick' ? 'sick' : request.type === 'bildungsurlaub' ? 'bildungsurlaub' : 'vacation'}`}>
+                    {request.type === 'sick' ? '🤒 Krank' : request.type === 'bildungsurlaub' ? '🎓 Bildungsurlaub' : '🌴 Urlaub'}
                   </span>
                   <span className="request-employee">{request.userName}</span>
                   <span className="date-range">
@@ -514,17 +515,24 @@ export function AdminVacationView({
             {calendarDays.map(day => {
               const dayVacations = getVacationsForDay(day);
               const dayBirthdays = getBirthdaysForDay(day);
+              const holidayInfo = getHolidayInfo(day);
               const isToday = isSameDay(day, new Date());
               const weekend = isWeekend(day);
               const hasVacation = dayVacations.length > 0;
               const hasBirthday = dayBirthdays.length > 0;
+              const isHoliday = holidayInfo !== null;
 
               return (
                 <div
                   key={day.toISOString()}
-                  className={`calendar-day ${weekend ? 'weekend' : ''} ${isToday ? 'today' : ''} ${hasVacation ? 'has-vacation' : ''} ${hasBirthday ? 'has-birthday' : ''}`}
+                  className={`calendar-day ${weekend ? 'weekend' : ''} ${isToday ? 'today' : ''} ${hasVacation ? 'has-vacation' : ''} ${hasBirthday ? 'has-birthday' : ''} ${isHoliday ? 'holiday' : ''}`}
                 >
                   <span className="day-number">{format(day, 'd')}</span>
+                  {isHoliday && (
+                    <div className="holiday-name" title={holidayInfo.name}>
+                      {holidayInfo.name}
+                    </div>
+                  )}
                   {hasBirthday && (
                     <div className="birthday-names">
                       {dayBirthdays.map(emp => (
@@ -544,9 +552,9 @@ export function AdminVacationView({
                         <span
                           key={v.id}
                           className={`vacation-name ${v.type === 'sick' ? 'sick' : `color-${userColorMap.get(v.userId) ?? 0}`}`}
-                          title={`${v.userName}${v.type === 'sick' ? ' (Krank)' : ''}`}
+                          title={`${v.userName}${v.type === 'sick' ? ' (Krank)' : v.type === 'bildungsurlaub' ? ' (Bildungsurlaub)' : ' (Urlaub)'}`}
                         >
-                          {v.userName?.split(' ')[0]}{v.type === 'sick' ? ' 🤒' : ''}
+                          {v.userName?.split(' ')[0]}{v.type === 'sick' ? ' 🤒' : v.type === 'bildungsurlaub' ? ' 🎓' : ' 🌴'}
                         </span>
                       ))}
                       {dayVacations.length > 2 && (
@@ -636,8 +644,8 @@ export function AdminVacationView({
                     {monthVacations.map(vacation => (
                       <div key={`${monthKey}-${vacation.id}`} className={`vacation-item ${vacation.type === 'sick' ? 'sick' : 'admin'} ${vacation.deletionRequested ? 'deletion-pending' : ''}`}>
                         <div className="vacation-info">
-                          <span className={`entry-type-badge ${vacation.type === 'sick' ? 'sick' : 'vacation'}`}>
-                            {vacation.type === 'sick' ? 'Krank' : 'Urlaub'}
+                          <span className={`entry-type-badge ${vacation.type === 'sick' ? 'sick' : vacation.type === 'bildungsurlaub' ? 'bildungsurlaub' : 'vacation'}`}>
+                            {vacation.type === 'sick' ? '🤒 Krank' : vacation.type === 'bildungsurlaub' ? '🎓 Bildungsurlaub' : '🌴 Urlaub'}
                           </span>
                           {vacation.deletionRequested && (
                             <span className="deletion-pending-badge">Löschung beantragt</span>

@@ -24,11 +24,15 @@ export function UserDashboard({
   onSwapRequest,
   onSubmitVacation,
   onSubmitSickDay,
+  onSubmitBildungsurlaub,
   onRequestDeletion,
   onUpdateBirthDate,
   refreshBookings
 }) {
-  const [activeView, setActiveView] = useState('team'); // 'team', 'personal', oder 'vacation'
+  // Ärzte und MFA brauchen keine Schichtplanung
+  const noShiftPlanning = userData?.role === 'arzt' || userData?.role === 'mfa';
+
+  const [activeView, setActiveView] = useState(noShiftPlanning ? 'vacation' : 'team');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [showFreeShifts, setShowFreeShifts] = useState(false);
 
@@ -37,31 +41,33 @@ export function UserDashboard({
 
   return (
     <div className="user-dashboard">
-      {/* Ansicht-Umschalter */}
-      <div className="view-toggle-container">
-        <div className="view-toggle">
-          <button
-            className={activeView === 'personal' ? 'active' : ''}
-            onClick={() => setActiveView('personal')}
-          >
-            Mein Dienstplan
-          </button>
-          <button
-            className={activeView === 'team' ? 'active' : ''}
-            onClick={() => setActiveView('team')}
-          >
-            Team-Übersicht
-          </button>
-          <button
-            className={activeView === 'vacation' ? 'active' : ''}
-            onClick={() => setActiveView('vacation')}
-          >
-            Urlaub / Krankheit
-          </button>
+      {/* Ansicht-Umschalter - nur für Rollen mit Schichtplanung */}
+      {!noShiftPlanning && (
+        <div className="view-toggle-container">
+          <div className="view-toggle">
+            <button
+              className={activeView === 'personal' ? 'active' : ''}
+              onClick={() => setActiveView('personal')}
+            >
+              Mein Dienstplan
+            </button>
+            <button
+              className={activeView === 'team' ? 'active' : ''}
+              onClick={() => setActiveView('team')}
+            >
+              Team-Übersicht
+            </button>
+            <button
+              className={activeView === 'vacation' ? 'active' : ''}
+              onClick={() => setActiveView('vacation')}
+            >
+              Urlaub / Krankheit
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {activeView === 'vacation' ? (
+      {(activeView === 'vacation' || noShiftPlanning) ? (
         /* Urlaubsansicht */
         <VacationView
           userData={userData}
@@ -72,6 +78,7 @@ export function UserDashboard({
           onNextYear={onNextYear}
           onSubmitVacation={onSubmitVacation}
           onSubmitSickDay={onSubmitSickDay}
+          onSubmitBildungsurlaub={onSubmitBildungsurlaub}
           onRequestDeletion={onRequestDeletion}
           onUpdateBirthDate={onUpdateBirthDate}
         />

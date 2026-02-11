@@ -1,5 +1,6 @@
 import { ShiftCard } from './ShiftCard';
 import { formatDate, formatShortWeekday, isToday } from '../../utils/dateUtils';
+import { getHolidayInfo } from '../../services/holidayService';
 
 export function DayColumn({
   date,
@@ -18,7 +19,9 @@ export function DayColumn({
   onEditBookingTime,
   onAssignEmployee
 }) {
-  const dayClass = isToday(date) ? 'day-column today' : 'day-column';
+  const holidayInfo = getHolidayInfo(date);
+  const isHoliday = holidayInfo !== null;
+  const dayClass = `day-column ${isToday(date) ? 'today' : ''} ${isHoliday ? 'holiday' : ''}`.trim();
 
   // Prüfe ob eine Langschicht an diesem Tag gebucht ist
   const longShiftTypes = ['lang_frueh', 'lang_spaet'];
@@ -42,6 +45,11 @@ export function DayColumn({
       <div className="day-header">
         <span className="weekday">{formatShortWeekday(date)}</span>
         <span className="date">{formatDate(date, 'dd.MM.')}</span>
+        {isHoliday && (
+          <span className="holiday-badge" title={holidayInfo.name}>
+            {holidayInfo.name}
+          </span>
+        )}
       </div>
 
       <div className="day-shifts">

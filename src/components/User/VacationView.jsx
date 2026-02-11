@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { calculateBusinessDays } from '../../services/vacationService';
+import { getHolidayInfo } from '../../services/holidayService';
 
 export function VacationView({
   userData,
@@ -12,26 +13,43 @@ export function VacationView({
   onNextYear,
   onSubmitVacation,
   onSubmitSickDay,
+  onSubmitBildungsurlaub,
   onRequestDeletion,
   onUpdateBirthDate
 }) {
   const [selectedStartDate, setSelectedStartDate] = useState('');
   const [selectedEndDate, setSelectedEndDate] = useState('');
   const [note, setNote] = useState('');
-  const [entryType, setEntryType] = useState('vacation'); // 'vacation' oder 'sick'
+  const [entryType, setEntryType] = useState('vacation'); // 'vacation', 'sick', oder 'bildungsurlaub'
   const [submitting, setSubmitting] = useState(false);
   const [viewMonth, setViewMonth] = useState(new Date());
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [birthDate, setBirthDate] = useState(userData?.birthDate || '');
   const [savingBirthDate, setSavingBirthDate] = useState(false);
 
+  // Rollen-spezifische Einstellungen
+  const isArzt = userData?.role === 'arzt';
+  const isMFA = userData?.role === 'mfa';
+  const isArztOrMFA = isArzt || isMFA;
+
+  // Standard-Urlaubstage basierend auf Rolle
+  const getDefaultVacationDays = () => {
+    if (isArztOrMFA) return 30;
+    return 15; // Standard für andere Rollen
+  };
+
   // Berechne verwendete und verbleibende Urlaubstage sowie Krankheitstage
   const vacationStats = useMemo(() => {
-    const totalDays = userData?.vacationDays || 15;
+    const totalDays = userData?.vacationDays || getDefaultVacationDays();
+    const bildungsUrlaubTotal = isArzt ? 5 : 0;
     const yearVacations = vacations.filter(v => new Date(v.startDate).getFullYear() === currentYear);
 
     const usedVacationDays = yearVacations
-      .filter(v => v.type !== 'sick')
+      .filter(v => v.type === 'vacation')
+      .reduce((sum, v) => sum + (v.days || 0), 0);
+
+    const usedBildungsurlaub = yearVacations
+      .filter(v => v.type === 'bildungsurlaub')
       .reduce((sum, v) => sum + (v.days || 0), 0);
 
     const sickDays = yearVacations
@@ -39,9 +57,18 @@ export function VacationView({
       .reduce((sum, v) => sum + (v.days || 0), 0);
 
     const remainingDays = totalDays - usedVacationDays;
+    const remainingBildungsurlaub = bildungsUrlaubTotal - usedBildungsurlaub;
 
-    return { totalDays, usedDays: usedVacationDays, remainingDays, sickDays };
-  }, [vacations, userData, currentYear]);
+    return {
+      totalDays,
+      usedDays: usedVacationDays,
+      remainingDays,
+      sickDays,
+      bildungsUrlaubTotal,
+      usedBildungsurlaub,
+      remainingBildungsurlaub
+    };
+  }, [vacations, userData, currentYear, isArzt]);
 
   // Alle Mitarbeiter aus den Urlaubsdaten mit Farbzuweisung
   const employees = useMemo(() => {
@@ -121,9 +148,14 @@ export function VacationView({
       return;
     }
 
-    // Nur bei Urlaub prüfen ob genügend Tage übrig sind
+    // Prüfe ob genügend Tage übrig sind
     if (entryType === 'vacation' && selectedDays > vacationStats.remainingDays) {
       alert(`Nicht genügend Urlaubstage! Sie haben noch ${vacationStats.remainingDays} Tage übrig.`);
+      return;
+    }
+
+    if (entryType === 'bildungsurlaub' && selectedDays > vacationStats.remainingBildungsurlaub) {
+      alert(`Nicht genügend Bildungsurlaub! Sie haben noch ${vacationStats.remainingBildungsurlaub} Tage übrig.`);
       return;
     }
 
@@ -134,6 +166,8 @@ export function VacationView({
         if (result?.cancelledBookings > 0) {
           alert(`Krankheit eingetragen. ${result.cancelledBookings} Schicht(en) wurden automatisch storniert.`);
         }
+      } else if (entryType === 'bildungsurlaub') {
+        await onSubmitBildungsurlaub(selectedStartDate, selectedEndDate, note);
       } else {
         await onSubmitVacation(selectedStartDate, selectedEndDate, note);
       }
@@ -187,6 +221,14 @@ export function VacationView({
           <span className="stat-label">Krankheitstage</span>
           <span className="stat-value sick">{vacationStats.sickDays}</span>
         </div>
+        {isArzt && (
+          <div className="stat-card bildungsurlaub">
+            <span className="stat-label">Bildungsurlaub</span>
+            <span className="stat-value bildungsurlaub">
+              {vacationStats.remainingBildungsurlaub} / {vacationStats.bildungsUrlaubTotal}
+            </span>
+          </div>
+        )}
         <div className="stat-card birthday">
           <span className="stat-label">Mein Geburtstag</span>
           <div className="birthday-input-group">
@@ -211,7 +253,11 @@ export function VacationView({
 
       {/* Urlaub/Krankheit einreichen */}
       <div className="vacation-form-card">
-        <h3>{entryType === 'sick' ? 'Krankheit eintragen' : 'Urlaub einreichen'}</h3>
+        <h3>
+          {entryType === 'sick' ? 'Krankheit eintragen' :
+           entryType === 'bildungsurlaub' ? 'Bildungsurlaub einreichen' :
+           'Urlaub einreichen'}
+        </h3>
         <form onSubmit={handleSubmit} className="vacation-form">
           <div className="entry-type-toggle">
             <button
@@ -221,6 +267,15 @@ export function VacationView({
             >
               Urlaub
             </button>
+            {isArzt && (
+              <button
+                type="button"
+                className={`toggle-btn bildungsurlaub ${entryType === 'bildungsurlaub' ? 'active' : ''}`}
+                onClick={() => setEntryType('bildungsurlaub')}
+              >
+                Bildungsurlaub
+              </button>
+            )}
             <button
               type="button"
               className={`toggle-btn sick ${entryType === 'sick' ? 'active' : ''}`}
@@ -328,25 +383,32 @@ export function VacationView({
 
             {calendarDays.map(day => {
               const dayVacations = getVacationsForDay(day);
+              const holidayInfo = getHolidayInfo(day);
               const isToday = isSameDay(day, new Date());
               const weekend = isWeekend(day);
               const hasVacation = dayVacations.length > 0;
+              const isHoliday = holidayInfo !== null;
 
               return (
                 <div
                   key={day.toISOString()}
-                  className={`calendar-day ${weekend ? 'weekend' : ''} ${isToday ? 'today' : ''} ${hasVacation ? 'has-vacation' : ''}`}
+                  className={`calendar-day ${weekend ? 'weekend' : ''} ${isToday ? 'today' : ''} ${hasVacation ? 'has-vacation' : ''} ${isHoliday ? 'holiday' : ''}`}
                 >
                   <span className="day-number">{format(day, 'd')}</span>
+                  {isHoliday && (
+                    <div className="holiday-name" title={holidayInfo.name}>
+                      {holidayInfo.name}
+                    </div>
+                  )}
                   {hasVacation && (
                     <div className="vacation-names">
                       {dayVacations.slice(0, 2).map(v => (
                         <span
                           key={v.id}
                           className={`vacation-name ${v.type === 'sick' ? 'sick' : `color-${userColorMap.get(v.userId) ?? 0}`}`}
-                          title={`${v.userName}${v.type === 'sick' ? ' (Krank)' : ''}`}
+                          title={`${v.userName}${v.type === 'sick' ? ' (Krank)' : v.type === 'bildungsurlaub' ? ' (Bildungsurlaub)' : ' (Urlaub)'}`}
                         >
-                          {v.userName?.split(' ')[0]}{v.type === 'sick' ? ' 🤒' : ''}
+                          {v.userName?.split(' ')[0]}{v.type === 'sick' ? ' 🤒' : v.type === 'bildungsurlaub' ? ' 🎓' : ' 🌴'}
                         </span>
                       ))}
                       {dayVacations.length > 2 && (
@@ -386,10 +448,10 @@ export function VacationView({
               .filter(v => new Date(v.startDate).getFullYear() === currentYear)
               .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
               .map(vacation => (
-                <div key={vacation.id} className={`vacation-item ${vacation.type === 'sick' ? 'sick' : ''}`}>
+                <div key={vacation.id} className={`vacation-item ${vacation.type === 'sick' ? 'sick' : vacation.type === 'bildungsurlaub' ? 'bildungsurlaub' : ''}`}>
                   <div className="vacation-dates">
-                    <span className={`entry-type-badge ${vacation.type === 'sick' ? 'sick' : 'vacation'}`}>
-                      {vacation.type === 'sick' ? 'Krank' : 'Urlaub'}
+                    <span className={`entry-type-badge ${vacation.type}`}>
+                      {vacation.type === 'sick' ? '🤒 Krank' : vacation.type === 'bildungsurlaub' ? '🎓 Bildungsurlaub' : '🌴 Urlaub'}
                     </span>
                     <span className="date-range">
                       {format(parseISO(vacation.startDate), 'dd.MM.yyyy', { locale: de })}

@@ -430,6 +430,14 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   background: rgba(0, 212, 255, 0.05);
 }
 
+.day-column.holiday {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.day-column.holiday .day-header {
+  background: rgba(239, 68, 68, 0.15);
+}
+
 .day-header {
   padding: 1rem;
   text-align: center;
@@ -450,6 +458,17 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .day-header .date {
   font-size: 0.875rem;
   color: var(--text-primary);
+}
+
+.day-header .holiday-badge {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.2);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
 }
 
 .day-shifts {
@@ -1217,6 +1236,41 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   margin-top: 1.5rem;
 }
 
+/* Birthday Required Modal */
+.birthday-required-modal {
+  max-width: 400px;
+}
+
+.birthday-required-modal .modal-body {
+  padding: 1.5rem;
+}
+
+.birthday-required-modal p {
+  margin-bottom: 1.5rem;
+  color: var(--text-secondary);
+}
+
+.birthday-required-modal .form-group {
+  margin-bottom: 0;
+}
+
+.birthday-required-modal .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.birthday-required-modal .form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--surface-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
 /* Loading */
 .loading {
   text-align: center;
@@ -1614,6 +1668,14 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   border-color: var(--accent-red);
 }
 
+.stat-card.bildungsurlaub {
+  border-color: #8b5cf6;
+}
+
+.stat-value.bildungsurlaub {
+  color: #a78bfa;
+}
+
 .stat-card.birthday {
   border-color: #ec4899;
 }
@@ -1684,6 +1746,16 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   border-color: var(--accent-red);
   background: rgba(255, 71, 87, 0.1);
   color: var(--accent-red);
+}
+
+.toggle-btn.bildungsurlaub:hover {
+  border-color: #8b5cf6;
+}
+
+.toggle-btn.bildungsurlaub.active {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
 }
 
 .vacation-form .form-row {
@@ -1842,6 +1914,29 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 .calendar-day.has-birthday.has-vacation {
   background: linear-gradient(135deg, rgba(236, 72, 153, 0.15) 50%, rgba(0, 200, 117, 0.1) 50%);
+}
+
+/* Feiertage */
+.calendar-day.holiday {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.calendar-day.holiday .day-number {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.holiday-name {
+  font-size: 0.6rem;
+  color: #ef4444;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  padding: 1px 3px;
+  background: rgba(239, 68, 68, 0.2);
+  border-radius: 2px;
 }
 
 .birthday-names {
@@ -2130,6 +2225,15 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .entry-type-badge.sick {
   background: var(--accent-red);
   color: white;
+}
+
+.entry-type-badge.bildungsurlaub {
+  background: #8b5cf6;
+  color: white;
+}
+
+.vacation-item.bildungsurlaub {
+  border-left-color: #8b5cf6;
 }
 
 /* Löschungsantrag Styles */

@@ -162,6 +162,10 @@ export default function App() {
   const [demoWeekStart, setDemoWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [demoViewMode, setDemoViewMode] = useState('user'); // 'admin' oder 'user'
 
+  // Geburtsdatum-Pflicht Modal
+  const [birthDateInput, setBirthDateInput] = useState('');
+  const [savingBirthDate, setSavingBirthDate] = useState(false);
+
   // Einladungslink-Handling
   const [inviteToken, setInviteToken] = useState(() => getInviteToken());
   const [invitations, setInvitations] = useState([]);
@@ -289,6 +293,11 @@ export default function App() {
     await refreshVacations();
     await refreshBookings(); // Buchungen aktualisieren (könnten storniert worden sein)
     return result; // Gibt cancelledBookings zurück
+  };
+
+  const handleSubmitBildungsurlaub = async (startDate, endDate, note) => {
+    await requestVacation(user.uid, userData?.displayName, startDate, endDate, note, 'bildungsurlaub');
+    await refreshVacations();
   };
 
   const handleAddSickDay = async (userId, userName, startDate, endDate, note) => {
@@ -529,6 +538,62 @@ export default function App() {
 
   const loading = shiftsLoading || bookingsLoading;
 
+  // Prüfe ob Geburtsdatum fehlt (Admins ausgenommen)
+  const needsBirthDate = user && userData && !userData.birthDate && !isAdmin;
+
+  const handleSaveBirthDateModal = async () => {
+    if (!birthDateInput) return;
+    setSavingBirthDate(true);
+    try {
+      await updateUserBirthDate(user.uid, birthDateInput);
+      await refreshApprovedUsers();
+      // Seite neu laden um userData zu aktualisieren
+      window.location.reload();
+    } catch (err) {
+      alert('Fehler beim Speichern: ' + err.message);
+    } finally {
+      setSavingBirthDate(false);
+    }
+  };
+
+  // Zeige Geburtsdatum-Modal wenn nötig
+  if (needsBirthDate) {
+    return (
+      <div className="app">
+        <Header userData={userData} onLogout={logout} />
+        <div className="modal-overlay">
+          <div className="modal birthday-required-modal">
+            <div className="modal-header">
+              <h3>Geburtsdatum erforderlich</h3>
+            </div>
+            <div className="modal-body">
+              <p>Bitte geben Sie Ihr Geburtsdatum ein, um fortzufahren.</p>
+              <div className="form-group">
+                <label htmlFor="birthDateRequired">Geburtsdatum</label>
+                <input
+                  type="date"
+                  id="birthDateRequired"
+                  value={birthDateInput}
+                  onChange={(e) => setBirthDateInput(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveBirthDateModal}
+                  disabled={!birthDateInput || savingBirthDate}
+                >
+                  {savingBirthDate ? 'Speichern...' : 'Speichern'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <Header userData={userData} onLogout={logout} />
@@ -589,6 +654,7 @@ export default function App() {
             onCancelRequest={cancel}
             onSubmitVacation={handleSubmitVacation}
             onSubmitSickDay={handleSubmitSickDay}
+            onSubmitBildungsurlaub={handleSubmitBildungsurlaub}
             onRequestDeletion={handleRequestDeletion}
             onUpdateBirthDate={handleUpdateBirthDate}
             refreshBookings={refreshBookings}
