@@ -384,8 +384,12 @@ export function AdminVacationView({
         ) : (
           <div className="pending-requests-list">
             {pendingRequests.map(request => (
-              <div key={request.id} className={`pending-request-item ${request.type}`}>
-                <div className="request-info">
+              <div
+                key={request.id}
+                className={`pending-request-item ${request.type}`}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <div className="request-info" style={{ flex: 1 }}>
                   <span className={`entry-type-badge ${request.type === 'sick' ? 'sick' : request.type === 'bildungsurlaub' ? 'bildungsurlaub' : 'vacation'}`}>
                     {request.type === 'sick' ? '🤒 Krank' : request.type === 'bildungsurlaub' ? '🎓 Bildungsurlaub' : '🌴 Urlaub'}
                   </span>
@@ -401,7 +405,7 @@ export function AdminVacationView({
                     <span className="request-note">Notiz: {request.note}</span>
                   )}
                 </div>
-                <div className="request-actions">
+                <div className="request-actions" style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
                   <button
                     className="btn btn-success btn-sm"
                     onClick={() => handleApproveVacation(request.id, request.type)}
