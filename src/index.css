@@ -2298,6 +2298,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   border-radius: 8px;
   padding: 1rem;
   border-left: 4px solid #f59e0b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .pending-request-item.sick {
@@ -2313,7 +2318,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 0.5rem;
+  flex: 1;
 }
 
 .pending-request-item .request-employee {
@@ -2324,14 +2329,12 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .pending-request-item .request-note {
   font-size: 0.85rem;
   color: var(--text-secondary);
-  margin: 0.5rem 0;
   font-style: italic;
 }
 
 .pending-request-item .request-actions {
   display: flex;
   gap: 0.5rem;
-  margin-top: 0.75rem;
 }
 
 /* Löschungsantrag Styles */

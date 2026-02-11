@@ -397,10 +397,10 @@ export function AdminVacationView({
                     )}
                   </span>
                   <span className="days-count">{request.days} Tag{request.days !== 1 ? 'e' : ''}</span>
+                  {request.note && (
+                    <span className="request-note">Notiz: {request.note}</span>
+                  )}
                 </div>
-                {request.note && (
-                  <p className="request-note">Notiz: {request.note}</p>
-                )}
                 <div className="request-actions">
                   <button
                     className="btn btn-success btn-sm"
