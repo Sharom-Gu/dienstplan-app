@@ -51,6 +51,90 @@
   --employee-color-9: #EC4899;  /* Magenta */
 }
 
+/* CSS Variables - Light Theme */
+[data-theme="light"] {
+  --primary-bg: #f5f7fa;
+  --secondary-bg: #ffffff;
+  --surface-bg: #eef1f6;
+  --accent: #d4a017;
+  --accent-hover: #b8900f;
+  --accent-cyan: #0099cc;
+  --accent-cyan-hover: #007aa3;
+  --accent-green: #00a85f;
+  --accent-green-hover: #008a4e;
+  --accent-red: #e0404e;
+  --accent-red-hover: #c83040;
+  --text-primary: #1a202c;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+  --border: rgba(0, 0, 0, 0.12);
+  --border-light: rgba(0, 0, 0, 0.06);
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+  --color-secondary: #cbd5e0;
+  --color-secondary-hover: #a0aec0;
+}
+
+[data-theme="light"] input[type="date"],
+[data-theme="light"] input[type="time"] {
+  color-scheme: light !important;
+}
+
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="time"]::-webkit-calendar-picker-indicator {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%231a202c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>');
+}
+
+[data-theme="light"] .calendar-day.weekend {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .month-header:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .month-header.expanded {
+  background: rgba(0, 153, 204, 0.08);
+}
+
+[data-theme="light"] .shift-bar {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .shift-bar:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .shift-card.full {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 212, 255, 0.1);
+}
+
 /* Reset */
 *, *::before, *::after {
   box-sizing: border-box;

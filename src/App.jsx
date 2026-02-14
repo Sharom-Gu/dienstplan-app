@@ -158,6 +158,16 @@ const createDemoData = () => {
 export default function App() {
   const { user, userData, loading: authLoading, login, logout, isAdmin } = useAuth();
   const [activeView, setActiveView] = useState('calendar');
+
+  // Theme state with localStorage persistence
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
   // Demo-Woche startet bei aktueller Woche
   const [demoWeekStart, setDemoWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [demoViewMode, setDemoViewMode] = useState('user'); // 'admin' oder 'user'
@@ -221,7 +231,7 @@ export default function App() {
       try {
         const users = await getApprovedUsers();
         setApprovedUsersList(users);
-        setEmployees(users.map(u => ({ id: u.id, name: u.displayName })));
+        setEmployees(users.filter(u => u.role !== 'arzt' && u.role !== 'mfa').map(u => ({ id: u.id, name: u.displayName })));
       } catch (err) {
         console.error('Error fetching approved users:', err);
       }
@@ -425,7 +435,7 @@ export default function App() {
 
     return (
       <div className="app">
-        <Header userData={demoUserData} onLogout={() => alert('Demo-Modus: Logout deaktiviert')} />
+        <Header userData={demoUserData} onLogout={() => alert('Demo-Modus: Logout deaktiviert')} theme={theme} onToggleTheme={toggleTheme} />
         <div style={{ background: '#fff3cd', padding: '10px', textAlign: 'center', borderBottom: '1px solid #ffc107', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem' }}>
           <strong>DEMO-MODUS</strong>
           <span>|</span>
@@ -572,7 +582,7 @@ export default function App() {
   if (needsBirthDate) {
     return (
       <div className="app">
-        <Header userData={userData} onLogout={logout} />
+        <Header userData={userData} onLogout={logout} theme={theme} onToggleTheme={toggleTheme} />
         <div className="modal-overlay">
           <div className="modal birthday-required-modal">
             <div className="modal-header">
@@ -608,7 +618,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header userData={userData} onLogout={logout} />
+      <Header userData={userData} onLogout={logout} theme={theme} onToggleTheme={toggleTheme} />
 
       <main className="app-main">
         {isAdmin ? (
