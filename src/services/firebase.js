@@ -11,6 +11,12 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:000000000000:web:0000000000000000000000'
 };
 
+// DEBUG: Zeigt welcher API-Key geladen wird
+console.log('DEBUG Firebase Config:', {
+  apiKey: firebaseConfig.apiKey?.substring(0, 15) + '...',
+  projectId: firebaseConfig.projectId
+});
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);

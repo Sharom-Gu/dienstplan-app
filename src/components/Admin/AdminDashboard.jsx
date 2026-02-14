@@ -5,6 +5,7 @@ import { AuditLog } from './AuditLog';
 import { AdminVacationView } from './AdminVacationView';
 import { HourExceptionManager } from './HourExceptionManager';
 import { calculateDuration } from '../../utils/dateUtils';
+import { startOfWeek, endOfWeek, format, parseISO, differenceInCalendarDays } from 'date-fns';
 
 // Hilfsfunktion: Wochenstunden eines Mitarbeiters berechnen (ohne Pausen)
 function calculateWeeklyHours(userId, shifts, bookings) {
@@ -262,6 +263,7 @@ function BookingTimeEditor({ booking, onSave, onClose }) {
 // Inline-Komponente für Benutzer-Verwaltung
 function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUser, onRejectUser, onRevokeUser, onChangeUserRole, onCreateInvitation, onResetPassword }) {
   const [selectedRoles, setSelectedRoles] = useState({});
+  const [selectedStartDates, setSelectedStartDates] = useState({});
   const [processing, setProcessing] = useState({});
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteUrl, setInviteUrl] = useState('');
@@ -317,8 +319,9 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
   const handleApprove = async (userId) => {
     setProcessing(prev => ({ ...prev, [userId]: true }));
     try {
-      const role = selectedRoles[userId] || 'user';
-      await onApproveUser(userId, role);
+      const role = selectedRoles[userId] || 'mfa';
+      const startDate = selectedStartDates[userId] || null;
+      await onApproveUser(userId, role, startDate);
     } finally {
       setProcessing(prev => ({ ...prev, [userId]: false }));
     }
@@ -339,6 +342,20 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
     setProcessing(prev => ({ ...prev, [userId]: true }));
     try {
       await onRevokeUser(userId);
+    } finally {
+      setProcessing(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const handleResetPassword = async (userId, email) => {
+    if (!confirm(`Passwort-Reset E-Mail an "${email}" senden?`)) return;
+    setProcessing(prev => ({ ...prev, [userId]: true }));
+    try {
+      await onResetPassword(email);
+      setResetSent(prev => ({ ...prev, [userId]: true }));
+      setTimeout(() => setResetSent(prev => ({ ...prev, [userId]: false })), 3000);
+    } catch (err) {
+      alert('Fehler beim Senden der E-Mail: ' + err.message);
     } finally {
       setProcessing(prev => ({ ...prev, [userId]: false }));
     }
@@ -449,7 +466,7 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
                     </span>
                   )}
                 </div>
-                <div className="user-actions">
+                <div className="user-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                   <select
                     value={selectedRoles[user.id] || 'mfa'}
                     onChange={(e) => setSelectedRoles(prev => ({ ...prev, [user.id]: e.target.value }))}
@@ -461,6 +478,16 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
                     <option value="minijobber">Minijobber</option>
                     <option value="admin">Admin</option>
                   </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Eintritt:</label>
+                    <input
+                      type="date"
+                      value={selectedStartDates[user.id] || ''}
+                      onChange={(e) => setSelectedStartDates(prev => ({ ...prev, [user.id]: e.target.value }))}
+                      disabled={processing[user.id]}
+                      style={{ padding: '0.35rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
                   <button
                     className="btn btn-success"
                     onClick={() => handleApprove(user.id)}
@@ -502,8 +529,13 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
                       Freigegeben: {new Date(user.approvedAt.seconds ? user.approvedAt.seconds * 1000 : user.approvedAt).toLocaleDateString('de-DE')}
                     </span>
                   )}
+                  {user.employmentStartDate && (
+                    <span className="user-date" style={{ color: 'var(--accent-cyan)' }}>
+                      Eintritt: {new Date(user.employmentStartDate).toLocaleDateString('de-DE')}
+                    </span>
+                  )}
                 </div>
-                <div className="user-actions">
+                <div className="user-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                   <select
                     value={user.role || 'mfa'}
                     onChange={(e) => handleRoleChange(user.id, e.target.value)}
@@ -534,6 +566,113 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Widget: Wochen-Uebersicht (Krankmeldungen + Geburtstage)
+function WeekOverviewWidgets({ vacations, approvedUsers }) {
+  const today = new Date();
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+  const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+  // Krankmeldungen diese Woche
+  const sickThisWeek = useMemo(() => {
+    return vacations.filter(v => {
+      if (v.type !== 'sick') return false;
+      if (v.status === 'rejected') return false;
+      return v.startDate <= weekEndStr && v.endDate >= weekStartStr;
+    });
+  }, [vacations, weekStartStr, weekEndStr]);
+
+  // Naechste Geburtstage
+  const upcomingBirthdays = useMemo(() => {
+    return approvedUsers
+      .filter(u => u.birthDate)
+      .map(u => {
+        const birth = parseISO(u.birthDate);
+        let nextBirthdayYear = today.getFullYear();
+        let nextBirthday = new Date(nextBirthdayYear, birth.getMonth(), birth.getDate());
+        if (nextBirthday < today && format(nextBirthday, 'yyyy-MM-dd') !== format(today, 'yyyy-MM-dd')) {
+          nextBirthdayYear++;
+          nextBirthday = new Date(nextBirthdayYear, birth.getMonth(), birth.getDate());
+        }
+        const daysUntil = differenceInCalendarDays(nextBirthday, today);
+        return {
+          ...u,
+          nextBirthday,
+          daysUntil,
+          birthdayFormatted: format(nextBirthday, 'dd.MM.')
+        };
+      })
+      .sort((a, b) => a.daysUntil - b.daysUntil)
+      .slice(0, 3);
+  }, [approvedUsers, today]);
+
+  const formatDateRange = (start, end) => {
+    const s = parseISO(start);
+    const e = parseISO(end);
+    return `${format(s, 'dd.MM.')} – ${format(e, 'dd.MM.')}`;
+  };
+
+  const getDaysUntilLabel = (days) => {
+    if (days === 0) return 'Heute!';
+    if (days === 1) return 'Morgen';
+    return `In ${days} Tagen`;
+  };
+
+  return (
+    <div className="admin-widgets">
+      {/* Krankmeldungen */}
+      <div className="widget-card widget-sick">
+        <div className="widget-header">
+          <span className="widget-icon">🤒</span>
+          <h3>Krankmeldungen diese Woche</h3>
+        </div>
+        <div className="widget-content">
+          {sickThisWeek.length === 0 ? (
+            <p className="widget-empty">Keine Krankmeldungen diese Woche</p>
+          ) : (
+            <ul className="widget-list">
+              {sickThisWeek.map(v => (
+                <li key={v.id} className="widget-list-item">
+                  <span className="widget-name">{v.userName}</span>
+                  <span className="widget-detail">{formatDateRange(v.startDate, v.endDate)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Geburtstage */}
+      <div className="widget-card widget-birthday">
+        <div className="widget-header">
+          <span className="widget-icon">🎂</span>
+          <h3>Naechste Geburtstage</h3>
+        </div>
+        <div className="widget-content">
+          {upcomingBirthdays.length === 0 ? (
+            <p className="widget-empty">Keine Geburtstage hinterlegt</p>
+          ) : (
+            <ul className="widget-list">
+              {upcomingBirthdays.map(u => (
+                <li key={u.id} className="widget-list-item">
+                  <span className="widget-name">{u.displayName}</span>
+                  <span className="widget-detail">
+                    {u.birthdayFormatted}
+                    <span className={`widget-badge ${u.daysUntil === 0 ? 'today' : ''}`}>
+                      {getDaysUntilLabel(u.daysUntil)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -682,6 +821,8 @@ export function AdminDashboard({
 
   return (
     <div className="admin-dashboard">
+      <WeekOverviewWidgets vacations={vacations} approvedUsers={approvedUsers} />
+
       <div className="admin-tabs">
         <button
           className={`tab ${activeTab === 'calendar' ? 'active' : ''}`}

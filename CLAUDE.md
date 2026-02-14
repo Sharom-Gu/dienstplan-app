@@ -2,7 +2,7 @@
 
 ## Aktueller Stand (08.02.2026)
 
-### DEPLOYMENT STATUS: LIVE ✅
+### DEPLOYMENT STATUS: LIVE
 
 **Live-URL:** https://elaborate-daffodil-c7fa70.netlify.app
 
@@ -38,42 +38,38 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=1071522368252
 VITE_FIREBASE_APP_ID=1:1071522368252:web:f49dc965854d18e64a2579
 ```
 
-Diese Variablen sind bereits in Netlify konfiguriert.
+Diese Variablen sind in Netlify und in `.env` / `.env.local` konfiguriert.
 
 ---
 
-## Entwicklung fortsetzen
+## Entwicklung
 
 ### Lokal entwickeln
 ```bash
-cd /Users/sharom/Claude_Program/Dienstplan_Nevpaz/dienstplan-app
+cd /Users/sharom/Claude_Program/Dienstplan_Nevpaz
 
-# Dependencies (falls nötig)
+# Dependencies (falls noetig)
 npm install
 
 # Dev-Server starten
 npm run dev
+# Laeuft auf http://localhost:3000/
 
-# Demo-Modus aktivieren (für lokale Tests ohne Firebase)
+# Demo-Modus aktivieren (fuer lokale Tests ohne Firebase)
 # In src/App.jsx: DEMO_MODE = true
 ```
 
-### Änderungen deployen
+### Aenderungen deployen
 ```bash
-# Code committen
-git add .
-git commit -m "Beschreibung der Änderung"
+cd /Users/sharom/Claude_Program/Dienstplan_Nevpaz/dienstplan-app
 
-# Zu GitHub pushen (Netlify deployed automatisch)
+git add .
+git commit -m "Beschreibung der Aenderung"
 git push origin main
+# Netlify deployed automatisch
 ```
 
-### SSH-Key für GitHub
-SSH-Key wurde erstellt und zu GitHub hinzugefügt:
-- Privat: `~/.ssh/id_ed25519`
-- Öffentlich: `~/.ssh/id_ed25519.pub`
-
-Falls SSH nicht funktioniert:
+### SSH-Key fuer GitHub
 ```bash
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/id_ed25519
@@ -83,42 +79,27 @@ ssh-add ~/.ssh/id_ed25519
 
 ## Was wurde implementiert
 
-Die komplette Dienstplan-App ist fertig implementiert:
-
 - **Frontend**: React + Vite
 - **Backend**: Firebase (Auth + Firestore)
 - **Styling**: Dark Theme CSS mit Custom Properties
-- **Demo-Modus**: Vollständig funktionsfähig ohne Firebase
+- **Demo-Modus**: Vollstaendig funktionsfaehig ohne Firebase
 - **Hosting**: Netlify (automatisches Deployment via GitHub)
 
 ### Projektstruktur
 ```
-dienstplan-app/
-├── src/
-│   ├── components/
-│   │   ├── Auth/Login.jsx           # Login/Registrierung mit Admin-Freigabe
-│   │   ├── Calendar/                 # WeekView, DayColumn, ShiftCard
-│   │   ├── Admin/                    # AdminDashboard, ShiftEditor, AdminVacationView, AuditLog
-│   │   ├── User/                     # UserDashboard, PersonalSchedule, WeeklyHours, VacationView
-│   │   └── Layout/                   # Header, Navigation
-│   ├── hooks/                        # useAuth, useShifts, useBookings
-│   ├── services/                     # Firebase-Services (authService, shiftService, vacationService)
-│   ├── utils/                        # dateUtils, validation
-│   └── App.jsx, main.jsx, index.css
-├── firebase/firestore.rules          # Sicherheitsregeln für Firestore
-├── netlify.toml                      # Netlify Build-Konfiguration
-└── Konfigurationsdateien
+src/
+  components/
+    Auth/Login.jsx              # Login
+    Auth/InviteRegister.jsx     # Registrierung ueber Einladungslink
+    Calendar/                   # WeekView, DayColumn, ShiftCard
+    Admin/                      # AdminDashboard, ShiftEditor, AdminVacationView, AuditLog, HourExceptionManager
+    User/                       # UserDashboard, PersonalSchedule, WeeklyHours, VacationView
+    Layout/                     # Header, Navigation
+  hooks/                        # useAuth, useShifts, useBookings
+  services/                     # authService, shiftService, vacationService, invitationService
+  utils/                        # dateUtils, validation
+  App.jsx, main.jsx, index.css
 ```
-
-### Demo-Modus
-Die App kann im Demo-Modus laufen (`DEMO_MODE = true` in App.jsx).
-- Kein Login erforderlich
-- Umschalten zwischen Nutzer- und Admin-Ansicht
-- Alle Features testbar mit Demo-Daten
-- Demo-Daten für aktuelle UND nächste Woche
-- Wochen-Navigation funktioniert vollständig
-
-**Für Produktion ist DEMO_MODE = false gesetzt.**
 
 ### Schichtmodell
 Jeder Mitarbeiter arbeitet 3 Tage/Woche = 20 Stunden:
@@ -137,7 +118,7 @@ Kapazitäten:
 
 ### Features
 
-#### Nutzer-Bereich (3 Ansichten umschaltbar)
+#### Nutzer-Bereich (3 Ansichten)
 
 1. **Mein Dienstplan**
    - Persönlicher Wochenkalender mit eigenen Schichten als Zeitbalken
@@ -177,15 +158,11 @@ Kapazitäten:
    - Individuelle Arbeitszeiten pro Buchung anpassen
 
 2. **Urlaub-Tab**
-   - Übersicht aller Mitarbeiter mit Urlaubstagen (Gesamt/Genommen/Rest/Krank)
    - Urlaubstage pro Mitarbeiter bearbeiten
-   - Eintrittsdatum setzen für anteilige Berechnung
-   - "Anteilig berechnen" Button für neue Mitarbeiter
-   - **Krankheit für Mitarbeiter eintragen** (Formular)
-   - Monatskalender mit farbcodierten Mitarbeitern
-   - **Klappbare Monatsliste** für Urlaube & Krankheitstage
-   - **Jahresnavigation** (← 2026 →)
-   - Einträge die über Monate gehen erscheinen in beiden Monaten
+   - Eintrittsdatum / anteilige Berechnung
+   - Krankheit fuer Mitarbeiter eintragen
+   - Monatskalender + klappbare Monatsliste
+   - Jahresnavigation
 
 3. **Benutzer-Tab**
    - **Einladungslink erstellen**: Generiert einmaligen Registrierungslink
@@ -195,34 +172,43 @@ Kapazitäten:
      - Zugang entziehen
    - Rollen-Badges (Admin = gelb, Benutzer = cyan)
 
-4. **Audit-Log-Tab**
-   - Protokoll aller Aktionen
+4. **Audit-Log-Tab** - Protokoll aller Aktionen
+
+### Widgets (Admin-Dashboard)
+- Krankmeldungen diese Woche
+- Naechste Geburtstage
+
+### Einladungssystem
+1. Admin erstellt Einladungslink im Benutzer-Tab
+2. Link wird geteilt: `https://app.com/invite/TOKEN`
+3. Mitarbeiter registriert sich ueber den Link
+4. Ist sofort freigeschaltet (kein manuelles Genehmigen noetig)
+
+### Passwort-Reset (Admin)
+- Admin klickt "Passwort zuruecksetzen" neben dem Benutzer
+- Firebase sendet Reset-E-Mail an den Benutzer
+- Benutzer setzt neues Passwort ueber den Link
+
+### Session-Verhalten
+- Session endet bei Tab/Browser-Schliessung (browserSessionPersistence)
 
 ### Session-Verhalten
 - **Session endet bei Tab/Browser-Schließung**: Benutzer werden automatisch ausgeloggt wenn sie den Tab oder Browser schließen
 - Verwendet `browserSessionPersistence` statt `browserLocalPersistence`
 
 ### Urlaubs- und Krankheitssystem
-- **15 Urlaubstage pro Jahr** (Standard)
-- **Anteilige Berechnung**: Bei Eintritt während des Jahres
-- **Krankheitstage**: Unbegrenzt, werden separat gezählt
-- Nur Arbeitstage (Mo-Fr) werden gezählt
-- **Wochenenden können nicht als Start/Ende gewählt werden**
-- Mitarbeiter können selbst Urlaub UND Krankheit eintragen
-- Admin kann Krankheit für Mitarbeiter eintragen
+- **Urlaubstage**: Abhaengig von Rolle (15 oder 30 Tage)
+- **Anteilige Berechnung**: Bei Eintritt waehrend des Jahres
+- **Krankheitstage**: Unbegrenzt, separat gezaehlt
+- Nur Arbeitstage (Mo-Fr) werden gezaehlt
+- Wochenenden nicht als Start/Ende waehlbar
 
 ### Stundenberechnung
-- **Kurzschichten**: Volle Dauer wird gezählt (6h)
-- **Langschichten**: 30 Min Pause wird abgezogen (8,5h → 8h)
-- **Wochenfilter**: Nur Schichten der angezeigten Woche werden gezählt
-- Anzeige im Kalender zeigt volle Anwesenheitszeit
-- Berechnung verwendet nur Arbeitszeit
+- Kurzschichten: Volle Dauer (6h)
+- Langschichten: 30 Min Pause abgezogen (8,5h -> 8h)
+- Nur Schichten der angezeigten Woche
 
-### Mitarbeiter-Farben im Kalender
-10 Farben werden automatisch zugewiesen:
-- Cyan, Pink, Grün, Gelb, Lila, Orange, Blau, Rot, Teal, Magenta
-- Konsistent in Mitarbeiter- und Admin-Ansicht
-- Krankheitstage immer rot (überschreibt Mitarbeiterfarbe)
+---
 
 ### Einladungssystem (NEU!)
 Statt öffentlicher Registrierung gibt es jetzt Einladungslinks:
@@ -273,14 +259,14 @@ CSS-Variablen in `index.css`:
 {
   displayName: "Max Mustermann",
   email: "max@example.com",
-  role: "user" | "admin",
+  role: "arzt" | "mfa" | "werkstudent" | "minijobber" | "admin",
   status: "pending" | "approved" | "rejected" | "revoked",
-  weeklyMinHours: 20,
-  vacationDays: 15,              // Urlaubstage pro Jahr
-  employmentStartDate: "2026-04-01",  // Für anteilige Berechnung
+  weeklyMinHours: 20,          // null fuer Arzt/MFA
+  vacationDays: 15,            // 30 fuer Arzt/MFA
+  employmentStartDate: "2026-04-01",
+  birthDate: "1990-05-15",
   createdAt: Timestamp,
-  approvedAt: Timestamp,
-  revokedAt: Timestamp
+  approvedAt: Timestamp
 }
 ```
 
@@ -302,23 +288,23 @@ CSS-Variablen in `index.css`:
   userId: "user456",
   userName: "Max Mustermann",
   status: "active" | "cancelled",
-  customStartTime: "10:00",  // Optional: Admin-angepasste Zeit
+  customStartTime: "10:00",
   customEndTime: "14:00",
   createdAt: Timestamp
 }
 ```
 
-#### vacations (Urlaub & Krankheit)
+#### vacations
 ```javascript
 {
   userId: "user456",
   userName: "Max Mustermann",
   startDate: "2026-07-01",
   endDate: "2026-07-12",
-  days: 10,                    // Berechnete Arbeitstage
-  type: "vacation" | "sick",   // Urlaub oder Krankheit
-  status: "approved",
-  note: "Sommerurlaub",        // Optional
+  days: 10,
+  type: "vacation" | "sick",
+  status: "approved" | "pending",
+  note: "Sommerurlaub",
   createdAt: Timestamp
 }
 ```
@@ -335,6 +321,7 @@ CSS-Variablen in `index.css`:
   usedByName: null | "User Name"
 }
 ```
+
 
 ### Hinweise
 - Demo-Modus zeigt Schichten für aktuelle UND nächste Woche
