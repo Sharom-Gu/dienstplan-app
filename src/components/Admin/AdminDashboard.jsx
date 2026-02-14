@@ -347,20 +347,6 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
     }
   };
 
-  const handleResetPassword = async (userId, email) => {
-    if (!confirm(`Passwort-Reset E-Mail an "${email}" senden?`)) return;
-    setProcessing(prev => ({ ...prev, [userId]: true }));
-    try {
-      await onResetPassword(email);
-      setResetSent(prev => ({ ...prev, [userId]: true }));
-      setTimeout(() => setResetSent(prev => ({ ...prev, [userId]: false })), 3000);
-    } catch (err) {
-      alert('Fehler beim Senden der E-Mail: ' + err.message);
-    } finally {
-      setProcessing(prev => ({ ...prev, [userId]: false }));
-    }
-  };
-
   const handleRoleChange = async (userId, newRole) => {
     setProcessing(prev => ({ ...prev, [userId]: true }));
     try {
