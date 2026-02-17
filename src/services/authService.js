@@ -242,6 +242,7 @@ export const sendPasswordReset = async (email) => {
   await sendPasswordResetEmail(auth, email);
 };
 
+
 // Geburtsdatum eines Benutzers aktualisieren
 export const updateUserBirthDate = async (userId, birthDate) => {
   const userRef = doc(db, 'users', userId);

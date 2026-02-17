@@ -759,6 +759,113 @@ function WeekOverviewWidgets({ vacations, approvedUsers }) {
   );
 }
 
+// Widget: Wochen-Uebersicht (Krankmeldungen + Geburtstage)
+function WeekOverviewWidgets({ vacations, approvedUsers }) {
+  const today = new Date();
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+  const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+  // Krankmeldungen diese Woche
+  const sickThisWeek = useMemo(() => {
+    return vacations.filter(v => {
+      if (v.type !== 'sick') return false;
+      if (v.status === 'rejected') return false;
+      return v.startDate <= weekEndStr && v.endDate >= weekStartStr;
+    });
+  }, [vacations, weekStartStr, weekEndStr]);
+
+  // Naechste Geburtstage
+  const upcomingBirthdays = useMemo(() => {
+    return approvedUsers
+      .filter(u => u.birthDate)
+      .map(u => {
+        const birth = parseISO(u.birthDate);
+        let nextBirthdayYear = today.getFullYear();
+        let nextBirthday = new Date(nextBirthdayYear, birth.getMonth(), birth.getDate());
+        if (nextBirthday < today && format(nextBirthday, 'yyyy-MM-dd') !== format(today, 'yyyy-MM-dd')) {
+          nextBirthdayYear++;
+          nextBirthday = new Date(nextBirthdayYear, birth.getMonth(), birth.getDate());
+        }
+        const daysUntil = differenceInCalendarDays(nextBirthday, today);
+        return {
+          ...u,
+          nextBirthday,
+          daysUntil,
+          birthdayFormatted: format(nextBirthday, 'dd.MM.')
+        };
+      })
+      .sort((a, b) => a.daysUntil - b.daysUntil)
+      .slice(0, 3);
+  }, [approvedUsers, today]);
+
+  const formatDateRange = (start, end) => {
+    const s = parseISO(start);
+    const e = parseISO(end);
+    return `${format(s, 'dd.MM.')} – ${format(e, 'dd.MM.')}`;
+  };
+
+  const getDaysUntilLabel = (days) => {
+    if (days === 0) return 'Heute!';
+    if (days === 1) return 'Morgen';
+    return `In ${days} Tagen`;
+  };
+
+  return (
+    <div className="admin-widgets">
+      {/* Krankmeldungen */}
+      <div className="widget-card widget-sick">
+        <div className="widget-header">
+          <span className="widget-icon">🤒</span>
+          <h3>Krankmeldungen diese Woche</h3>
+        </div>
+        <div className="widget-content">
+          {sickThisWeek.length === 0 ? (
+            <p className="widget-empty">Keine Krankmeldungen diese Woche</p>
+          ) : (
+            <ul className="widget-list">
+              {sickThisWeek.map(v => (
+                <li key={v.id} className="widget-list-item">
+                  <span className="widget-name">{v.userName}</span>
+                  <span className="widget-detail">{formatDateRange(v.startDate, v.endDate)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Geburtstage */}
+      <div className="widget-card widget-birthday">
+        <div className="widget-header">
+          <span className="widget-icon">🎂</span>
+          <h3>Naechste Geburtstage</h3>
+        </div>
+        <div className="widget-content">
+          {upcomingBirthdays.length === 0 ? (
+            <p className="widget-empty">Keine Geburtstage hinterlegt</p>
+          ) : (
+            <ul className="widget-list">
+              {upcomingBirthdays.map(u => (
+                <li key={u.id} className="widget-list-item">
+                  <span className="widget-name">{u.displayName}</span>
+                  <span className="widget-detail">
+                    {u.birthdayFormatted}
+                    <span className={`widget-badge ${u.daysUntil === 0 ? 'today' : ''}`}>
+                      {getDaysUntilLabel(u.daysUntil)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminDashboard({
   userData,
   shifts,
