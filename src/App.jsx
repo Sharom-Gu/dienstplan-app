@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useShifts } from './hooks/useShifts';
 import { useBookings } from './hooks/useBookings';
-import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers, sendPasswordReset, updateUserBirthDate } from './services/authService';
+import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers, getRevokedUsers, deleteUserCompletely, sendPasswordReset, updateUserBirthDate } from './services/authService';
 import { getAllVacations, getVacationsForUser, requestVacation, deleteVacation, requestVacationDeletion, approveDeletionRequest, rejectDeletionRequest, approveVacationRequest, rejectVacationRequest, updateUserVacationDays, updateUserStartDate, addSickDay } from './services/vacationService';
 import { createInvitation, getAllInvitations } from './services/invitationService';
+import { checkAndSendReminders } from './services/reminderService';
 import { Login } from './components/Auth/Login';
 import { InviteRegister } from './components/Auth/InviteRegister';
 import { Header } from './components/Layout/Header';
@@ -212,6 +213,7 @@ export default function App() {
   // Pending users management for admin
   const [pendingUsers, setPendingUsers] = useState([]);
   const [approvedUsersList, setApprovedUsersList] = useState([]);
+  const [revokedUsersList, setRevokedUsersList] = useState([]);
   const [employees, setEmployees] = useState([]);
 
   const refreshPendingUsers = useCallback(async () => {
@@ -238,15 +240,27 @@ export default function App() {
     }
   }, [user]);
 
+  const refreshRevokedUsers = useCallback(async () => {
+    if (isAdmin) {
+      try {
+        const users = await getRevokedUsers();
+        setRevokedUsersList(users);
+      } catch (err) {
+        console.error('Error fetching revoked users:', err);
+      }
+    }
+  }, [isAdmin]);
+
   // Fetch pending users for admin, employees for all users
   useEffect(() => {
     if (user) {
       refreshApprovedUsers();
       if (isAdmin) {
         refreshPendingUsers();
+        refreshRevokedUsers();
       }
     }
-  }, [user, isAdmin, refreshPendingUsers, refreshApprovedUsers]);
+  }, [user, isAdmin, refreshPendingUsers, refreshApprovedUsers, refreshRevokedUsers]);
 
   const handleApproveUser = async (userId, role) => {
     await approveUser(userId, role);
@@ -260,8 +274,18 @@ export default function App() {
   };
 
   const handleRevokeUser = async (userId) => {
-    await revokeUser(userId);
+    const result = await revokeUser(userId);
     await refreshApprovedUsers();
+    await refreshRevokedUsers();
+    await refreshBookings();
+    return result;
+  };
+
+  const handleDeleteUserCompletely = async (userId) => {
+    const result = await deleteUserCompletely(userId);
+    await refreshRevokedUsers();
+    await refreshApprovedUsers();
+    return result;
   };
 
   const handleChangeUserRole = async (userId, newRole) => {
@@ -292,6 +316,15 @@ export default function App() {
       refreshVacations();
     }
   }, [user, refreshVacations]);
+
+  // Erinnerungen pruefen und senden (nur fuer Admin, einmal beim Laden)
+  useEffect(() => {
+    if (isAdmin && approvedUsersList.length > 0 && vacations.length > 0) {
+      checkAndSendReminders(approvedUsersList, vacations).catch(err => {
+        console.error('[Reminder] Fehler:', err);
+      });
+    }
+  }, [isAdmin, approvedUsersList, vacations]);
 
   const handleSubmitVacation = async (startDate, endDate, note) => {
     await requestVacation(user.uid, userData?.displayName, startDate, endDate, note, 'vacation');
@@ -419,7 +452,7 @@ export default function App() {
   }, [shifts, refreshBookings]);
 
   const refreshAll = async () => {
-    await Promise.all([refreshShifts(), refreshBookings(), refreshPendingUsers(), refreshApprovedUsers(), refreshVacations(), refreshInvitations()]);
+    await Promise.all([refreshShifts(), refreshBookings(), refreshPendingUsers(), refreshApprovedUsers(), refreshRevokedUsers(), refreshVacations(), refreshInvitations()]);
   };
 
   // Demo-Modus Navigation Funktionen
@@ -645,7 +678,9 @@ export default function App() {
             onClearAllShifts={clearAllShifts}
             onApproveUser={handleApproveUser}
             onRejectUser={handleRejectUser}
+            revokedUsers={revokedUsersList}
             onRevokeUser={handleRevokeUser}
+            onDeleteUserCompletely={handleDeleteUserCompletely}
             onChangeUserRole={handleChangeUserRole}
             onCreateInvitation={handleCreateInvitation}
             onResetPassword={sendPasswordReset}

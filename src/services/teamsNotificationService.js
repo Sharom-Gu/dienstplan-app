@@ -118,6 +118,24 @@ export const notifyCancelRequest = async (userName, shiftDate, shiftTime) => {
   return sendTeamsMessage(title, message);
 };
 
+// Erinnerung: Urlaubsbeginn in 2 Tagen
+export const notifyUpcomingVacation = async (userName, startDate, endDate, days, type = 'vacation') => {
+  const typeLabel = type === 'bildungsurlaub' ? 'Bildungsurlaub' : 'Urlaub';
+  const title = `🌴 Erinnerung: ${typeLabel}`;
+  const message = `**${userName}** hat ab ${formatDate(startDate)} ${typeLabel} (${days} Tage)\n\n` +
+    `- **Zeitraum:** ${formatDate(startDate)} - ${formatDate(endDate)}`;
+
+  return sendTeamsMessage(title, message);
+};
+
+// Erinnerung: Geburtstag in 2 Tagen
+export const notifyUpcomingBirthday = async (userName, birthdayFormatted) => {
+  const title = `🎂 Erinnerung: Geburtstag`;
+  const message = `**${userName}** hat am ${birthdayFormatted} Geburtstag`;
+
+  return sendTeamsMessage(title, message);
+};
+
 // Hilfsfunktion: Datum formatieren
 const formatDate = (dateStr) => {
   if (!dateStr) return '-';
