@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { WeekView } from '../Calendar/WeekView';
 import { ShiftEditor } from './ShiftEditor';
 import { AuditLog } from './AuditLog';
 import { AdminVacationView } from './AdminVacationView';
 import { HourExceptionManager } from './HourExceptionManager';
 import { calculateDuration } from '../../utils/dateUtils';
+import { startOfWeek, endOfWeek, format, parseISO, differenceInCalendarDays } from 'date-fns';
 
 // Hilfsfunktion: Wochenstunden eines Mitarbeiters berechnen (ohne Pausen)
 function calculateWeeklyHours(userId, shifts, bookings) {
@@ -260,14 +261,31 @@ function BookingTimeEditor({ booking, onSave, onClose }) {
 }
 
 // Inline-Komponente für Benutzer-Verwaltung
-function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUser, onRejectUser, onRevokeUser, onChangeUserRole, onCreateInvitation, onResetPassword }) {
+function UserManagement({ pendingUsers, approvedUsers, revokedUsers = [], invitations, onApproveUser, onRejectUser, onRevokeUser, onDeleteUserCompletely, onChangeUserRole, onCreateInvitation, onResetPassword, onUpdateStartDate }) {
   const [selectedRoles, setSelectedRoles] = useState({});
+  const [selectedStartDates, setSelectedStartDates] = useState({});
+  const [editingStartDate, setEditingStartDate] = useState({}); // Für aktive User
   const [processing, setProcessing] = useState({});
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteUrl, setInviteUrl] = useState('');
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [copied, setCopied] = useState(false);
   const [resetSent, setResetSent] = useState({});
+  const [startDateSaved, setStartDateSaved] = useState({});
+
+  const handleSaveStartDate = async (userId) => {
+    const startDate = editingStartDate[userId];
+    if (!startDate) return;
+
+    setProcessing(prev => ({ ...prev, [userId]: true }));
+    try {
+      await onUpdateStartDate(userId, startDate);
+      setStartDateSaved(prev => ({ ...prev, [userId]: true }));
+      setTimeout(() => setStartDateSaved(prev => ({ ...prev, [userId]: false })), 2000);
+    } finally {
+      setProcessing(prev => ({ ...prev, [userId]: false }));
+    }
+  };
 
   const handleCreateInvite = async () => {
     setCreatingInvite(true);
@@ -317,8 +335,9 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
   const handleApprove = async (userId) => {
     setProcessing(prev => ({ ...prev, [userId]: true }));
     try {
-      const role = selectedRoles[userId] || 'user';
-      await onApproveUser(userId, role);
+      const role = selectedRoles[userId] || 'mfa';
+      const startDate = selectedStartDates[userId] || null;
+      await onApproveUser(userId, role, startDate);
     } finally {
       setProcessing(prev => ({ ...prev, [userId]: false }));
     }
@@ -335,10 +354,27 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
   };
 
   const handleRevoke = async (userId, userName) => {
-    if (!confirm(`Zugang für "${userName}" wirklich entziehen? Der Benutzer kann sich nicht mehr anmelden.`)) return;
+    if (!confirm(`Zugang für "${userName}" wirklich entziehen? Zukünftige Buchungen werden automatisch gelöscht.`)) return;
     setProcessing(prev => ({ ...prev, [userId]: true }));
     try {
-      await onRevokeUser(userId);
+      const result = await onRevokeUser(userId);
+      if (result?.deletedBookings > 0) {
+        alert(`Zugang entzogen. ${result.deletedBookings} zukünftige Buchung(en) wurden gelöscht.`);
+      }
+    } finally {
+      setProcessing(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const handleDeleteCompletely = async (userId, userName) => {
+    if (!confirm(`"${userName}" komplett löschen? Alle Buchungen, Urlaube und Daten werden unwiderruflich entfernt.`)) return;
+    if (!confirm(`Bist du sicher? Diese Aktion kann NICHT rückgängig gemacht werden.`)) return;
+    setProcessing(prev => ({ ...prev, [userId]: true }));
+    try {
+      const result = await onDeleteUserCompletely(userId);
+      alert(`User gelöscht: ${result.deletedBookings} Buchungen, ${result.deletedVacations} Urlaubseinträge, ${result.deletedExceptions} Stundenausnahmen entfernt.\n\nHinweis: Firebase Auth Account muss manuell in der Firebase Console gelöscht werden.`);
+    } catch (err) {
+      alert('Fehler beim Löschen: ' + err.message);
     } finally {
       setProcessing(prev => ({ ...prev, [userId]: false }));
     }
@@ -449,7 +485,7 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
                     </span>
                   )}
                 </div>
-                <div className="user-actions">
+                <div className="user-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                   <select
                     value={selectedRoles[user.id] || 'mfa'}
                     onChange={(e) => setSelectedRoles(prev => ({ ...prev, [user.id]: e.target.value }))}
@@ -461,6 +497,16 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
                     <option value="minijobber">Minijobber</option>
                     <option value="admin">Admin</option>
                   </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Eintritt:</label>
+                    <input
+                      type="date"
+                      value={selectedStartDates[user.id] || ''}
+                      onChange={(e) => setSelectedStartDates(prev => ({ ...prev, [user.id]: e.target.value }))}
+                      disabled={processing[user.id]}
+                      style={{ padding: '0.35rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
                   <button
                     className="btn btn-success"
                     onClick={() => handleApprove(user.id)}
@@ -502,8 +548,13 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
                       Freigegeben: {new Date(user.approvedAt.seconds ? user.approvedAt.seconds * 1000 : user.approvedAt).toLocaleDateString('de-DE')}
                     </span>
                   )}
+                  {user.employmentStartDate && (
+                    <span className="user-date" style={{ color: 'var(--accent-cyan)' }}>
+                      Eintritt: {new Date(user.employmentStartDate).toLocaleDateString('de-DE')}
+                    </span>
+                  )}
                 </div>
-                <div className="user-actions">
+                <div className="user-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                   <select
                     value={user.role || 'mfa'}
                     onChange={(e) => handleRoleChange(user.id, e.target.value)}
@@ -515,6 +566,26 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
                     <option value="minijobber">Minijobber</option>
                     <option value="admin">Admin</option>
                   </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Eintritt:</label>
+                    <input
+                      type="date"
+                      value={editingStartDate[user.id] ?? user.employmentStartDate ?? ''}
+                      onChange={(e) => setEditingStartDate(prev => ({ ...prev, [user.id]: e.target.value }))}
+                      disabled={processing[user.id]}
+                      style={{ padding: '0.3rem', fontSize: '0.8rem' }}
+                    />
+                    {(editingStartDate[user.id] && editingStartDate[user.id] !== user.employmentStartDate) && (
+                      <button
+                        className="btn btn-success btn-sm"
+                        onClick={() => handleSaveStartDate(user.id)}
+                        disabled={processing[user.id]}
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                      >
+                        {startDateSaved[user.id] ? '✓' : 'Speichern'}
+                      </button>
+                    )}
+                  </div>
                   <button
                     className="btn btn-secondary"
                     onClick={() => handleResetPassword(user.id, user.email)}
@@ -535,6 +606,155 @@ function UserManagement({ pendingUsers, approvedUsers, invitations, onApproveUse
           </div>
         )}
       </div>
+
+      {/* Deaktivierte Benutzer */}
+      {revokedUsers.length > 0 && (
+        <div className="user-section">
+          <h3>Deaktivierte Benutzer</h3>
+          <div className="users-list">
+            {revokedUsers.map(user => (
+              <div key={user.id} className="user-card" style={{ borderLeft: '3px solid var(--accent-red)', opacity: 0.8 }}>
+                <div className="user-info">
+                  <div className="user-name-row">
+                    <strong>{user.displayName}</strong>
+                    <span className="role-badge" style={{ background: 'var(--accent-red)', color: 'white' }}>Deaktiviert</span>
+                  </div>
+                  <span className="user-email">{user.email}</span>
+                  {user.revokedAt && (
+                    <span className="user-date">
+                      Deaktiviert: {new Date(user.revokedAt.seconds ? user.revokedAt.seconds * 1000 : user.revokedAt).toLocaleDateString('de-DE')}
+                    </span>
+                  )}
+                </div>
+                <div className="user-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => handleDeleteCompletely(user.id, user.displayName)}
+                    disabled={processing[user.id]}
+                  >
+                    {processing[user.id] ? 'Löschen...' : 'Komplett löschen'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Widget: Wochen-Übersicht (Krankmeldungen + Geburtstage)
+function WeekOverviewWidgets({ vacations, approvedUsers }) {
+  const today = new Date();
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+  const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+  // Krankmeldungen diese Woche: alle sick-Einträge die sich mit der Woche überschneiden
+  const sickThisWeek = useMemo(() => {
+    return vacations.filter(v => {
+      if (v.type !== 'sick') return false;
+      if (v.status === 'rejected') return false;
+      // Überschneidung: startDate <= weekEnd UND endDate >= weekStart
+      return v.startDate <= weekEndStr && v.endDate >= weekStartStr;
+    });
+  }, [vacations, weekStartStr, weekEndStr]);
+
+  // Nächste Geburtstage berechnen
+  const upcomingBirthdays = useMemo(() => {
+    const todayStr = format(today, 'MM-dd');
+
+    return approvedUsers
+      .filter(u => u.birthDate)
+      .map(u => {
+        const birth = parseISO(u.birthDate);
+        const birthMonthDay = format(birth, 'MM-dd');
+
+        // Nächster Geburtstag: dieses Jahr oder nächstes
+        let nextBirthdayYear = today.getFullYear();
+        let nextBirthday = new Date(nextBirthdayYear, birth.getMonth(), birth.getDate());
+        if (nextBirthday < today && format(nextBirthday, 'yyyy-MM-dd') !== format(today, 'yyyy-MM-dd')) {
+          nextBirthdayYear++;
+          nextBirthday = new Date(nextBirthdayYear, birth.getMonth(), birth.getDate());
+        }
+
+        const daysUntil = differenceInCalendarDays(nextBirthday, today);
+
+        return {
+          ...u,
+          nextBirthday,
+          daysUntil,
+          birthdayFormatted: format(nextBirthday, 'dd.MM.')
+        };
+      })
+      .sort((a, b) => a.daysUntil - b.daysUntil)
+      .slice(0, 3);
+  }, [approvedUsers, today]);
+
+  const formatDateRange = (start, end) => {
+    const s = parseISO(start);
+    const e = parseISO(end);
+    return `${format(s, 'dd.MM.')} – ${format(e, 'dd.MM.')}`;
+  };
+
+  const getDaysUntilLabel = (days) => {
+    if (days === 0) return 'Heute!';
+    if (days === 1) return 'Morgen';
+    return `In ${days} Tagen`;
+  };
+
+  return (
+    <div className="admin-widgets">
+      {/* Krankmeldungen */}
+      <div className="widget-card widget-sick">
+        <div className="widget-header">
+          <span className="widget-icon">🤒</span>
+          <h3>Krankmeldungen diese Woche</h3>
+        </div>
+        <div className="widget-content">
+          {sickThisWeek.length === 0 ? (
+            <p className="widget-empty">Keine Krankmeldungen diese Woche</p>
+          ) : (
+            <ul className="widget-list">
+              {sickThisWeek.map(v => (
+                <li key={v.id} className="widget-list-item">
+                  <span className="widget-name">{v.userName}</span>
+                  <span className="widget-detail">{formatDateRange(v.startDate, v.endDate)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Geburtstage */}
+      <div className="widget-card widget-birthday">
+        <div className="widget-header">
+          <span className="widget-icon">🎂</span>
+          <h3>Nächste Geburtstage</h3>
+        </div>
+        <div className="widget-content">
+          {upcomingBirthdays.length === 0 ? (
+            <p className="widget-empty">Keine Geburtstage hinterlegt</p>
+          ) : (
+            <ul className="widget-list">
+              {upcomingBirthdays.map(u => (
+                <li key={u.id} className="widget-list-item">
+                  <span className="widget-name">{u.displayName}</span>
+                  <span className="widget-detail">
+                    {u.birthdayFormatted}
+                    <span className={`widget-badge ${u.daysUntil === 0 ? 'today' : ''}`}>
+                      {getDaysUntilLabel(u.daysUntil)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -548,6 +768,7 @@ export function AdminDashboard({
   employees = [],
   pendingUsers = [],
   approvedUsers = [],
+  revokedUsers = [],
   invitations = [],
   vacations = [],
   currentYear,
@@ -565,6 +786,7 @@ export function AdminDashboard({
   onApproveUser,
   onRejectUser,
   onRevokeUser,
+  onDeleteUserCompletely,
   onChangeUserRole,
   onCreateInvitation,
   onResetPassword,
@@ -682,6 +904,8 @@ export function AdminDashboard({
 
   return (
     <div className="admin-dashboard">
+      <WeekOverviewWidgets vacations={vacations} approvedUsers={approvedUsers} />
+
       <div className="admin-tabs">
         <button
           className={`tab ${activeTab === 'calendar' ? 'active' : ''}`}
@@ -904,9 +1128,10 @@ export function AdminDashboard({
         <UserManagement
           pendingUsers={pendingUsers}
           approvedUsers={approvedUsers}
+          revokedUsers={revokedUsers}
           invitations={invitations}
-          onApproveUser={async (userId, role) => {
-            await onApproveUser(userId, role);
+          onApproveUser={async (userId, role, startDate) => {
+            await onApproveUser(userId, role, startDate);
             if (refreshAll) await refreshAll();
           }}
           onRejectUser={async (userId) => {
@@ -914,8 +1139,14 @@ export function AdminDashboard({
             if (refreshAll) await refreshAll();
           }}
           onRevokeUser={async (userId) => {
-            await onRevokeUser(userId);
+            const result = await onRevokeUser(userId);
             if (refreshAll) await refreshAll();
+            return result;
+          }}
+          onDeleteUserCompletely={async (userId) => {
+            const result = await onDeleteUserCompletely(userId);
+            if (refreshAll) await refreshAll();
+            return result;
           }}
           onChangeUserRole={async (userId, newRole) => {
             await onChangeUserRole(userId, newRole);
@@ -923,6 +1154,10 @@ export function AdminDashboard({
           }}
           onCreateInvitation={onCreateInvitation}
           onResetPassword={onResetPassword}
+          onUpdateStartDate={async (userId, startDate) => {
+            await onUpdateEmployee(userId, { employmentStartDate: startDate });
+            if (refreshAll) await refreshAll();
+          }}
         />
       )}
 

@@ -101,18 +101,25 @@ const getWeeklyHoursByRole = (role) => {
 };
 
 // Benutzer genehmigen (mit Rollen-spezifischen Einstellungen)
-export const approveUser = async (userId, role = 'mfa') => {
+export const approveUser = async (userId, role = 'mfa', employmentStartDate = null) => {
   const userRef = doc(db, 'users', userId);
   const vacationDays = getVacationDaysByRole(role);
   const weeklyMinHours = getWeeklyHoursByRole(role);
 
-  await updateDoc(userRef, {
+  const updateData = {
     status: 'approved',
     role: role,
     vacationDays: vacationDays,
     weeklyMinHours: weeklyMinHours,
     approvedAt: new Date()
-  });
+  };
+
+  // Eintrittsdatum hinzufügen wenn angegeben
+  if (employmentStartDate) {
+    updateData.employmentStartDate = employmentStartDate;
+  }
+
+  await updateDoc(userRef, updateData);
 };
 
 // Benutzer ablehnen
@@ -124,13 +131,34 @@ export const rejectUser = async (userId) => {
   });
 };
 
-// Zugang entziehen (Status auf 'revoked' setzen)
+// Zugang entziehen (Status auf 'revoked' setzen + zukünftige Buchungen löschen)
 export const revokeUser = async (userId) => {
   const userRef = doc(db, 'users', userId);
   await updateDoc(userRef, {
     status: 'revoked',
     revokedAt: new Date()
   });
+
+  // Zukünftige Buchungen des Users löschen
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const bookingsQuery = query(collection(db, 'bookings'), where('userId', '==', userId));
+  const bookingsSnapshot = await getDocs(bookingsQuery);
+
+  let deletedCount = 0;
+  for (const bookingDoc of bookingsSnapshot.docs) {
+    const booking = bookingDoc.data();
+    // Schicht laden um Datum zu prüfen
+    const shiftDoc = await getDoc(doc(db, 'shifts', booking.shiftId));
+    if (shiftDoc.exists()) {
+      const shift = shiftDoc.data();
+      if (shift.date >= today) {
+        await deleteDoc(bookingDoc.ref);
+        deletedCount++;
+      }
+    }
+  }
+
+  return { deletedBookings: deletedCount };
 };
 
 // Benutzerrolle ändern (inkl. Anpassung der Urlaubstage und Wochenstunden)
@@ -146,9 +174,50 @@ export const changeUserRole = async (userId, newRole) => {
   });
 };
 
-// Benutzer löschen
+// Benutzer löschen (nur users-Dokument)
 export const deleteUser = async (userId) => {
   await deleteDoc(doc(db, 'users', userId));
+};
+
+// Alle revoked Users abrufen
+export const getRevokedUsers = async () => {
+  const q = query(collection(db, 'users'), where('status', '==', 'revoked'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+// User komplett löschen (alle Daten aus allen Collections)
+// Hinweis: Firebase Auth Account muss manuell in der Firebase Console gelöscht werden
+export const deleteUserCompletely = async (userId) => {
+  // 1. Alle Buchungen löschen
+  const bookingsQuery = query(collection(db, 'bookings'), where('userId', '==', userId));
+  const bookingsSnapshot = await getDocs(bookingsQuery);
+  for (const d of bookingsSnapshot.docs) {
+    await deleteDoc(d.ref);
+  }
+
+  // 2. Alle Urlaubseinträge löschen
+  const vacationsQuery = query(collection(db, 'vacations'), where('userId', '==', userId));
+  const vacationsSnapshot = await getDocs(vacationsQuery);
+  for (const d of vacationsSnapshot.docs) {
+    await deleteDoc(d.ref);
+  }
+
+  // 3. Alle Stundenausnahmen löschen
+  const exceptionsQuery = query(collection(db, 'hourExceptions'), where('userId', '==', userId));
+  const exceptionsSnapshot = await getDocs(exceptionsQuery);
+  for (const d of exceptionsSnapshot.docs) {
+    await deleteDoc(d.ref);
+  }
+
+  // 4. User-Dokument löschen
+  await deleteDoc(doc(db, 'users', userId));
+
+  return {
+    deletedBookings: bookingsSnapshot.size,
+    deletedVacations: vacationsSnapshot.size,
+    deletedExceptions: exceptionsSnapshot.size
+  };
 };
 
 export const logoutUser = async () => {

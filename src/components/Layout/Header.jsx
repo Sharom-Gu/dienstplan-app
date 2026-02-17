@@ -1,4 +1,4 @@
-export function Header({ userData, onLogout }) {
+export function Header({ userData, onLogout, theme, onToggleTheme }) {
   return (
     <header className="app-header">
       <div className="header-left">
@@ -13,6 +13,13 @@ export function Header({ userData, onLogout }) {
               <span className="role-badge">Admin</span>
             )}
           </span>
+          <button
+            className="theme-toggle"
+            onClick={onToggleTheme}
+            title={theme === 'dark' ? 'Zum Light Mode wechseln' : 'Zum Dark Mode wechseln'}
+          >
+            {theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19'}
+          </button>
           <button className="btn btn-secondary btn-small" onClick={onLogout}>
             Abmelden
           </button>

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { calculateBusinessDays } from '../../services/vacationService';
+import { calculateBusinessDays, calculateProratedVacationDays } from '../../services/vacationService';
 import { getHolidayInfo } from '../../services/holidayService';
 
 export function VacationView({
@@ -15,6 +15,7 @@ export function VacationView({
   onSubmitSickDay,
   onSubmitBildungsurlaub,
   onRequestDeletion,
+  onDeletePending,
   onUpdateBirthDate
 }) {
   const [selectedStartDate, setSelectedStartDate] = useState('');
@@ -38,18 +39,40 @@ export function VacationView({
     return 15; // Standard für andere Rollen
   };
 
+  // Berechne anteilige Urlaubstage basierend auf Startdatum
+  const getProratedDaysForYear = (fullYearDays, startDateStr, year) => {
+    if (!startDateStr) return fullYearDays; // Kein Startdatum = volle Tage
+
+    const startDate = new Date(startDateStr);
+    const startYear = startDate.getFullYear();
+
+    // Startdatum in der Vergangenheit = volle Tage
+    if (startYear < year) return fullYearDays;
+
+    // Startdatum in der Zukunft = 0 Tage
+    if (startYear > year) return 0;
+
+    // Startdatum im aktuellen Jahr = anteilige Berechnung (nutze Service-Funktion)
+    return calculateProratedVacationDays(startDateStr, fullYearDays);
+  };
+
   // Berechne verwendete und verbleibende Urlaubstage sowie Krankheitstage
   const vacationStats = useMemo(() => {
-    const totalDays = userData?.vacationDays || getDefaultVacationDays();
-    const bildungsUrlaubTotal = isArzt ? 5 : 0;
+    const baseVacationDays = userData?.vacationDays || getDefaultVacationDays();
+    const baseBildungsurlaub = isArzt ? 5 : 0;
+
+    // Anteilige Berechnung basierend auf Startdatum
+    const totalDays = getProratedDaysForYear(baseVacationDays, userData?.employmentStartDate, currentYear);
+    const bildungsUrlaubTotal = getProratedDaysForYear(baseBildungsurlaub, userData?.employmentStartDate, currentYear);
+
     const yearVacations = vacations.filter(v => new Date(v.startDate).getFullYear() === currentYear);
 
     const usedVacationDays = yearVacations
-      .filter(v => v.type === 'vacation')
+      .filter(v => v.type === 'vacation' && v.status !== 'rejected')
       .reduce((sum, v) => sum + (v.days || 0), 0);
 
     const usedBildungsurlaub = yearVacations
-      .filter(v => v.type === 'bildungsurlaub')
+      .filter(v => v.type === 'bildungsurlaub' && v.status !== 'rejected')
       .reduce((sum, v) => sum + (v.days || 0), 0);
 
     const sickDays = yearVacations
@@ -61,12 +84,14 @@ export function VacationView({
 
     return {
       totalDays,
+      baseVacationDays, // Volle Jahres-Urlaubstage (für Anzeige)
       usedDays: usedVacationDays,
       remainingDays,
       sickDays,
       bildungsUrlaubTotal,
       usedBildungsurlaub,
-      remainingBildungsurlaub
+      remainingBildungsurlaub,
+      isProratedYear: userData?.employmentStartDate && new Date(userData.employmentStartDate).getFullYear() === currentYear
     };
   }, [vacations, userData, currentYear, isArzt]);
 
@@ -202,6 +227,12 @@ export function VacationView({
     }
   };
 
+  // Ausstehenden Antrag direkt löschen (ohne Admin-Genehmigung)
+  const handleDeletePending = async (vacationId) => {
+    if (!confirm('Antrag wirklich löschen?')) return;
+    await onDeletePending(vacationId);
+  };
+
   return (
     <div className="vacation-view">
       {/* Übersicht */}
@@ -209,6 +240,9 @@ export function VacationView({
         <div className="stat-card">
           <span className="stat-label">Urlaubstage {currentYear}</span>
           <span className="stat-value">{vacationStats.totalDays}</span>
+          {vacationStats.isProratedYear && (
+            <span className="stat-note">anteilig (von {vacationStats.baseVacationDays})</span>
+          )}
         </div>
         <div className="stat-card">
           <span className="stat-label">Genommen</span>
@@ -476,6 +510,15 @@ export function VacationView({
                       {vacation.status === 'pending' ? '⏳ Ausstehend' :
                        vacation.status === 'rejected' ? '❌ Abgelehnt' : '✓ Genehmigt'}
                     </span>
+                    {vacation.status === 'pending' && (
+                      <button
+                        className="btn btn-danger btn-sm"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', whiteSpace: 'nowrap', textTransform: 'none' }}
+                        onClick={() => handleDeletePending(vacation.id)}
+                      >
+                        Löschen
+                      </button>
+                    )}
                     {vacation.status === 'approved' && (
                       <>
                         {vacation.deletionRequested ? (
@@ -485,6 +528,7 @@ export function VacationView({
                             <span className="deletion-rejected-badge">Löschung abgelehnt</span>
                             <button
                               className="btn btn-warning btn-sm"
+                              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', whiteSpace: 'nowrap', textTransform: 'none' }}
                               onClick={() => handleRequestDeletion(vacation.id, vacation.type)}
                             >
                               Erneut beantragen
@@ -493,6 +537,7 @@ export function VacationView({
                         ) : (
                           <button
                             className="btn btn-warning btn-sm"
+                            style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', whiteSpace: 'nowrap', textTransform: 'none' }}
                             onClick={() => handleRequestDeletion(vacation.id, vacation.type)}
                           >
                             Löschung beantragen

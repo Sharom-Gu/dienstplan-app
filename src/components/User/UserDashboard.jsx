@@ -26,6 +26,7 @@ export function UserDashboard({
   onSubmitSickDay,
   onSubmitBildungsurlaub,
   onRequestDeletion,
+  onDeletePending,
   onUpdateBirthDate,
   refreshBookings
 }) {
@@ -80,6 +81,7 @@ export function UserDashboard({
           onSubmitSickDay={onSubmitSickDay}
           onSubmitBildungsurlaub={onSubmitBildungsurlaub}
           onRequestDeletion={onRequestDeletion}
+          onDeletePending={onDeletePending}
           onUpdateBirthDate={onUpdateBirthDate}
         />
       ) : activeView === 'personal' ? (
