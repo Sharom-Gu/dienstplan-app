@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useShifts } from './hooks/useShifts';
 import { useBookings } from './hooks/useBookings';
-import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers, sendPasswordReset, updateUserBirthDate } from './services/authService';
+import { getPendingUsers, approveUser, rejectUser, revokeUser, changeUserRole, getApprovedUsers, getRevokedUsers, deleteUserCompletely, sendPasswordReset, updateUserBirthDate } from './services/authService';
 import { getAllVacations, getVacationsForUser, requestVacation, deleteVacation, requestVacationDeletion, approveDeletionRequest, rejectDeletionRequest, approveVacationRequest, rejectVacationRequest, updateUserVacationDays, updateUserStartDate, addSickDay } from './services/vacationService';
 import { createInvitation, getAllInvitations } from './services/invitationService';
+import { checkAndSendReminders } from './services/reminderService';
 import { Login } from './components/Auth/Login';
 import { InviteRegister } from './components/Auth/InviteRegister';
 import { Header } from './components/Layout/Header';
@@ -158,6 +159,16 @@ const createDemoData = () => {
 export default function App() {
   const { user, userData, loading: authLoading, login, logout, isAdmin } = useAuth();
   const [activeView, setActiveView] = useState('calendar');
+
+  // Theme state with localStorage persistence
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
   // Demo-Woche startet bei aktueller Woche
   const [demoWeekStart, setDemoWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [demoViewMode, setDemoViewMode] = useState('user'); // 'admin' oder 'user'
@@ -202,6 +213,7 @@ export default function App() {
   // Pending users management for admin
   const [pendingUsers, setPendingUsers] = useState([]);
   const [approvedUsersList, setApprovedUsersList] = useState([]);
+  const [revokedUsersList, setRevokedUsersList] = useState([]);
   const [employees, setEmployees] = useState([]);
 
   const refreshPendingUsers = useCallback(async () => {
@@ -221,12 +233,23 @@ export default function App() {
       try {
         const users = await getApprovedUsers();
         setApprovedUsersList(users);
-        setEmployees(users.map(u => ({ id: u.id, name: u.displayName })));
+        setEmployees(users.filter(u => u.role !== 'arzt' && u.role !== 'mfa').map(u => ({ id: u.id, name: u.displayName })));
       } catch (err) {
         console.error('Error fetching approved users:', err);
       }
     }
   }, [user]);
+
+  const refreshRevokedUsers = useCallback(async () => {
+    if (isAdmin) {
+      try {
+        const users = await getRevokedUsers();
+        setRevokedUsersList(users);
+      } catch (err) {
+        console.error('Error fetching revoked users:', err);
+      }
+    }
+  }, [isAdmin]);
 
   // Fetch pending users for admin, employees for all users
   useEffect(() => {
@@ -234,12 +257,13 @@ export default function App() {
       refreshApprovedUsers();
       if (isAdmin) {
         refreshPendingUsers();
+        refreshRevokedUsers();
       }
     }
-  }, [user, isAdmin, refreshPendingUsers, refreshApprovedUsers]);
+  }, [user, isAdmin, refreshPendingUsers, refreshApprovedUsers, refreshRevokedUsers]);
 
-  const handleApproveUser = async (userId, role) => {
-    await approveUser(userId, role);
+  const handleApproveUser = async (userId, role, employmentStartDate = null) => {
+    await approveUser(userId, role, employmentStartDate);
     await refreshPendingUsers();
     await refreshApprovedUsers();
   };
@@ -250,8 +274,18 @@ export default function App() {
   };
 
   const handleRevokeUser = async (userId) => {
-    await revokeUser(userId);
+    const result = await revokeUser(userId);
     await refreshApprovedUsers();
+    await refreshRevokedUsers();
+    await refreshBookings();
+    return result;
+  };
+
+  const handleDeleteUserCompletely = async (userId) => {
+    const result = await deleteUserCompletely(userId);
+    await refreshRevokedUsers();
+    await refreshApprovedUsers();
+    return result;
   };
 
   const handleChangeUserRole = async (userId, newRole) => {
@@ -282,6 +316,15 @@ export default function App() {
       refreshVacations();
     }
   }, [user, refreshVacations]);
+
+  // Erinnerungen pruefen und senden (nur fuer Admin, einmal beim Laden)
+  useEffect(() => {
+    if (isAdmin && approvedUsersList.length > 0 && vacations.length > 0) {
+      checkAndSendReminders(approvedUsersList, vacations).catch(err => {
+        console.error('[Reminder] Fehler:', err);
+      });
+    }
+  }, [isAdmin, approvedUsersList, vacations]);
 
   const handleSubmitVacation = async (startDate, endDate, note) => {
     await requestVacation(user.uid, userData?.displayName, startDate, endDate, note, 'vacation');
@@ -409,7 +452,7 @@ export default function App() {
   }, [shifts, refreshBookings]);
 
   const refreshAll = async () => {
-    await Promise.all([refreshShifts(), refreshBookings(), refreshPendingUsers(), refreshApprovedUsers(), refreshVacations(), refreshInvitations()]);
+    await Promise.all([refreshShifts(), refreshBookings(), refreshPendingUsers(), refreshApprovedUsers(), refreshRevokedUsers(), refreshVacations(), refreshInvitations()]);
   };
 
   // Demo-Modus Navigation Funktionen
@@ -425,7 +468,7 @@ export default function App() {
 
     return (
       <div className="app">
-        <Header userData={demoUserData} onLogout={() => alert('Demo-Modus: Logout deaktiviert')} />
+        <Header userData={demoUserData} onLogout={() => alert('Demo-Modus: Logout deaktiviert')} theme={theme} onToggleTheme={toggleTheme} />
         <div style={{ background: '#fff3cd', padding: '10px', textAlign: 'center', borderBottom: '1px solid #ffc107', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem' }}>
           <strong>DEMO-MODUS</strong>
           <span>|</span>
@@ -572,7 +615,7 @@ export default function App() {
   if (needsBirthDate) {
     return (
       <div className="app">
-        <Header userData={userData} onLogout={logout} />
+        <Header userData={userData} onLogout={logout} theme={theme} onToggleTheme={toggleTheme} />
         <div className="modal-overlay">
           <div className="modal birthday-required-modal">
             <div className="modal-header">
@@ -608,7 +651,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header userData={userData} onLogout={logout} />
+      <Header userData={userData} onLogout={logout} theme={theme} onToggleTheme={toggleTheme} />
 
       <main className="app-main">
         {isAdmin ? (
@@ -635,7 +678,9 @@ export default function App() {
             onClearAllShifts={clearAllShifts}
             onApproveUser={handleApproveUser}
             onRejectUser={handleRejectUser}
+            revokedUsers={revokedUsersList}
             onRevokeUser={handleRevokeUser}
+            onDeleteUserCompletely={handleDeleteUserCompletely}
             onChangeUserRole={handleChangeUserRole}
             onCreateInvitation={handleCreateInvitation}
             onResetPassword={sendPasswordReset}
@@ -670,6 +715,7 @@ export default function App() {
             onSubmitSickDay={handleSubmitSickDay}
             onSubmitBildungsurlaub={handleSubmitBildungsurlaub}
             onRequestDeletion={handleRequestDeletion}
+            onDeletePending={handleDeleteVacation}
             onUpdateBirthDate={handleUpdateBirthDate}
             refreshBookings={refreshBookings}
           />
